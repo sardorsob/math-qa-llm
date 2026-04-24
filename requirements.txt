@@ -1,0 +1,37 @@
+# CSE 151B Math QA — Python deps for notebooks, judger, and HF inference.
+#
+# Install (recommended):
+#   python -m venv .venv
+#   .\.venv\Scripts\Activate.ps1          # Windows PowerShell
+#   # or: source .venv/bin/activate      # macOS / Linux
+#   pip install -U pip
+#   pip install -r requirements.txt
+#
+# GPU: use an NVIDIA driver + CUDA stack compatible with PyTorch / vLLM.
+# If pip picks the wrong torch build, install PyTorch first from:
+#   https://pytorch.org/get-started/locally/
+# then run: pip install -r requirements.txt
+#
+# vLLM is aimed at Linux or WSL2; on native Windows use the Transformers
+# path in the notebook or a Linux GPU machine. See context/ENVIRONMENT_SETUP.md.
+
+sympy>=1.12
+numpy>=1.24
+pandas>=2.0
+pyyaml>=6.0
+tqdm>=4.66
+
+transformers>=4.45.0
+accelerate>=0.34.0
+safetensors>=0.4.0
+huggingface_hub>=0.24.0
+bitsandbytes>=0.43.0
+antlr4-python3-runtime==4.11.1
+
+torch>=2.4.0
+
+vllm>=0.6.0
+
+jupyter>=1.0.0
+ipykernel>=6.29.0
+notebook>=7.0.0

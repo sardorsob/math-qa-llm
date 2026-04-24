@@ -1,0 +1,16 @@
+# Conda / mamba environment: Python + pip installs from requirements.txt
+#
+#   conda env create -f environment.yml
+#   conda activate cse151b-math-qa
+#
+# If your conda build does not support `file:requirements.txt` under pip:,
+# use a venv instead (see context/ENVIRONMENT_SETUP.md).
+
+name: cse151b-math-qa
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11.*
+  - pip
+  - pip:
+      - -r file:requirements.txt

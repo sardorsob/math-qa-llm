@@ -1,0 +1,13 @@
+.claude/
+.venv/
+.venv
+results/
+data/raw/*
+!data/raw/.gitkeep
+data/interim/
+artifacts/logs/runs/*
+!artifacts/logs/runs/.gitkeep
+__pycache__/
+.ipynb_checkpoints/
+*.pyc
+LICENSE
