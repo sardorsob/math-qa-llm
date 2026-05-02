@@ -62,10 +62,18 @@ Point your notebook/config at wherever you store these paths; the schema is the 
 
 ## Stats
 
-Fill after loading local copies (counts, MCQ vs free-form, placeholder counts):
+Re-count after any official data refresh. **Observed once** from a local `public.jsonl` load (dev machine):
 
 | Metric | Value |
 |--------|--------|
-| Public line count | TBD |
-| Private line count | TBD |
-| MCQ vs free-form | TBD |
+| Public line count | 1126 |
+| Public MCQ / free-form | 375 MCQ, 751 free-form |
+| Private line count | 943 expected by competition upload UI (verify locally with `private.jsonl`) |
+
+## Current workflow notes
+
+- `public.jsonl` is for validation only. A CSV generated from the public split is **not** a valid leaderboard submission.
+- `N_QUESTIONS = None` means “all rows in the currently selected `DATA_PATH`,” not necessarily private rows.
+- Current notebook validation setting is `DATA_PATH = public.jsonl` and `N_QUESTIONS = 50`, so it should generate/score 50 public examples after the config and dataset cells are rerun.
+- For final submission set `DATA_PATH = PRIVATE_PATH`, `N_QUESTIONS = None`, and `SAVE_EVAL = False`; then skip scoring because private rows have no `answer`.
+- The generated CSV must contain **all 943 private ids** with columns exactly `id,response`.

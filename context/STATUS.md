@@ -2,45 +2,56 @@
 
 ## Done
 
-- [x] Repository folder scaffold (`structure.md`)
-- [x] Context updated for competition task, schema, and submission format (`PROJECT_BRIEF.md`, `DATASETS.md`)
-- [x] `requirements.txt`, `environment.yml`, and `ENVIRONMENT_SETUP.md` (venv, kernel, GPU/HF model cache)
+- [x] Repository scaffold (`structure.md`)
+- [x] Competition task + schema docs (`PROJECT_BRIEF.md`, `DATASETS.md`)
+- [x] Environment: `environment.yml`, `environment-vllm.yml`, `requirements.txt`, `scripts/register_jupyter_kernel.py`, `ENVIRONMENT_SETUP.md`
+- [x] **`notebooks/02_inference.ipynb` — major implementation pass**
+  - Repo-root resolution (`judger.py` parent), `sys.path`, paths under `data/raw/`, outputs under `artifacts/logs/runs/`
+  - Optional **`TEST_RANDOM_SUBSET` + `RANDOM_SEED`** when `N_QUESTIONS` is an int (smoke tests across the file)
+  - **`N_QUESTIONS = None`** = full file for eventual production runs
+  - Transformers path: **`tokenizer.padding_side = "left"`**, **`enable_thinking=True`** in `apply_chat_template`, **`MAX_TOKENS = 8192`** (headroom for Qwen3-Thinking before `\boxed{}`), **`min_p=0.0`**, **`pad_token_id=tokenizer.eos_token_id`**
+  - **Sequential generation** with `tqdm` (one question at a time): visible progress; interrupt leaves partial **`responses`** list
+  - **Scoring:** guards if `responses` missing or length mismatch; tqdm with `id=` postfix; public-only (`answer` required)
+  - vLLM import optional (`USE_VLLM`); default workflow is **Transformers + bitsandbytes** (Windows-friendly)
+  - Install cell: `sys.executable`-based pip hints; kernel note (no reliance on `!source`)
+- [x] Section 3 dataset markdown: public vs private fields, `[ANS]`, answer shapes
+- [x] **Iteration 1 (first eval)** — metrics + config + per-row notes in **`ITERATIONS.md`**; artifact `artifacts/logs/runs/starter_results.jsonl` (10 rows); summary row in `structure.md`
+- [x] **Phase 2 notebook plan implemented and corrected for competition rules** — structured math/MCQ prompts, adaptive multi-pass generation, optional self-consistency / majority vote on uncertain questions, truncation/uncertainty diagnostics, checkpointing, and Section 10 CSV export. The model is locked back to the required **`Qwen/Qwen3-4B-Thinking-2507`** after a temporary invalid 8B model experiment was rejected.
 
-## In progress (planning)
+## In progress
 
-- [ ] Align `notebooks/02_inference.ipynb` with full pipeline (see **Notebook gaps** below) — not started in code yet
-- [ ] Implement `configs/default.yaml` + `src/utils/paths.py` and wire notebooks/scripts to them
-- [ ] Implement `src/` loaders, inference helpers, and `scripts/generate_submission.py`
-- [ ] Download competition files into `data/raw/` and optional sample CSV into `data/external/`
+- [ ] **WSL2 + vLLM adaptive validation run** — current notebook is set for `DATA_MODE="public"`, `N_QUESTIONS=50`, adaptive Phase 1/2/3, checkpoint `adaptive_public_v1_checkpoint.jsonl`, output `adaptive_public_v1_results.jsonl`
+- [ ] Full **`private.jsonl`** inference + **`SAVE_EVAL=False`** + submission CSV (`id`, `response`)
+- [x] Notebook Section 10 CSV export cell added (`id,response`, `csv.QUOTE_ALL`)
+- [ ] Wire **`configs/default.yaml`** + `src/utils/paths.py` (optional consolidation; notebook currently self-contained)
 
-## Notebook gaps (`02_inference.ipynb` vs competition)
+## Environment status
 
-These are **planning notes** only; the notebook is unchanged until implementation.
+| Environment | State | Used for |
+|-------------|-------|----------|
+| Windows — Conda (`cse151b-math-qa`) | ✅ working | Exploration, quick edits, Transformers fallback |
+| WSL2 Ubuntu — pip venv (`cse151b-venv`) | ✅ installed | **Production inference via vLLM** |
 
-| Gap | Why it matters |
-|-----|----------------|
-| **Subset-only generation** | Starter often runs on a tiny slice (e.g. first 5 rows). Competition requires **all** private `id`s in the submission CSV. |
-| **No private-set run** | Need a path that loads `private.jsonl`, skips local scoring (no labels), and still saves **per-id responses**. |
-| **No submission CSV step** | Need a dedicated step or script: results JSONL (or in-memory records) → **`id,response`** CSV with correct escaping. |
-| **Hardcoded paths** | Should read paths from config + `paths.py` so public/private and output dirs stay consistent. |
-| **Output location** | Prefer run JSONL under `artifacts/logs/runs/` (and CSV under `artifacts/submissions/`) instead of ad hoc `results/`. |
-| **Venv activation cell** | `source .venv/...` is a no-op inside Jupyter; real fix is selecting the project kernel / interpreter. |
+WSL2 setup: Ubuntu installed via `wsl --install`; Python venv created; full pip stack installed including `vllm`, `transformers`, `torch`, `bitsandbytes`. GPU verified visible via `torch.cuda.get_device_name(0)`. See `ENVIRONMENT_SETUP.md` for full reproducible steps.
 
-Optional niceties for later: `N_QUESTIONS = None` meaning “all”; progress bar over full split; toggle `SAVE_EVAL` / `USE_PUBLIC` for dev vs submission runs.
+## Remaining gaps (competition-complete pipeline)
 
-## Next steps — your setup checklist
+| Gap | Notes |
+|-----|--------|
+| **vLLM smoke test** | ✅ Done for random 10 — see `ITERATIONS.md`; watch truncation before `\boxed{}` on long chains |
+| **Private run + CSV** | Notebook can now write quoted CSV; still needs actual private run |
+| **Config centralization** | Paths / `MAX_TOKENS` duplicated in notebook vs YAML |
+| **EDA notebook** | `01_eda.ipynb` still skeleton until loaders land in `src/` |
+| **Notebook stale outputs** | Old notebook outputs may still show 10-question results; trust source cells and rerun config → dataset → generation → scoring in order |
 
-1. **Clone or open** [151B_SP26_Competition](https://github.com/brooksniu/151B_SP26_Competition) if you need the canonical starter notebook or file checksums; keep **this** repo as your working tree.
-2. **Download** `public.jsonl`, `private.jsonl`, and `sample_submission.csv` (if provided) into `data/raw/` and `data/external/` per `structure.md`.
-3. **Kernel:** Create/select a venv (e.g. `.venv`) and register a Jupyter kernel; do not rely on `!source` in the notebook for package visibility.
-4. **Fill `configs/default.yaml`** with model id, GPU, paths to `data/raw/*.jsonl`, and sampling limits once you lock choices.
-5. **Implement** `src/utils/paths.py` (repo root + dirs) and load YAML from the notebook / scripts.
-6. **EDA:** Run `notebooks/01_eda.ipynb` after implementing loaders — confirm MCQ vs free-form counts and `[ANS]` counts.
-7. **Inference notebook:** Extend per the table above — full public eval path, full private inference path, JSONL export, then CSV via `scripts/generate_submission.py` (or equivalent cells).
-8. **Spot-check CSV:** Open in Excel or pandas — columns `id`, `response`; no broken rows; every private `id` present.
-9. **Log the run** in `structure.md` (artifact index / results log) when you have a real baseline.
+## Next steps
 
-## Next (docs)
+1. Run the **50-question public adaptive validation batch**. Confirm the dataset cell prints `random sample of 50`, adaptive generation prints phase counts, and scoring prints `Scoring 50 responses`.
+2. Append the Phase 2 public result to `ITERATIONS.md` and `structure.md`.
+3. If `thinking_budget` is unsupported or Phase 1 is still too slow, reduce `PHASE1_MAX_TOKENS` or skip Phase 2/3 for private.
+4. For a first leaderboard upload, set **`DATA_MODE="private"`**, **`N_QUESTIONS=None`**, skip scoring/summary, then run save + CSV for a 943-row submission.
 
-- [ ] Record first modeling decisions in `DECISIONS.md`
-- [ ] Add measured dataset stats to `DATASETS.md`
+## Docs hygiene
+
+- [x] Implementation decisions logged in `DECISIONS.md` (see table)
+- [x] Observed public split stats in `DATASETS.md` (approximate; re-verify after data refresh)

@@ -6,7 +6,7 @@
 
 ## What we are building
 
-An **inference** pipeline (starter: pretrained **Qwen3-4B-Thinking** via Transformers and/or vLLM — see `notebooks/02_inference.ipynb`) that:
+An **inference** pipeline (starter: pretrained **`Qwen/Qwen3-4B-Thinking-2507`** via Transformers and/or vLLM — see `notebooks/02_inference.ipynb`) that:
 
 1. Uses **only** the provided files: `public.jsonl`, `private.jsonl`, and `sample_submission.csv` (no extra competition data).
 2. Loads **public** JSONL for development and **private** JSONL for submission.
@@ -15,11 +15,31 @@ An **inference** pipeline (starter: pretrained **Qwen3-4B-Thinking** via Transfo
 
 This is **not** “training a new LLM from scratch” in the starter flow; weights come from Hugging Face and are **downloaded automatically** on first use (never committed to git). Optional finetuning would be extra work beyond the baseline notebook.
 
+## Hard competition constraints
+
+- **Final inference model:** must be **`Qwen/Qwen3-4B-Thinking-2507`**. Alternative base models are not allowed for final responses.
+- **Allowed:** prompt engineering, chain-of-thought prompting, self-consistency, progressive prompting, supervised fine-tuning, LoRA/QLoRA, DPO/GRPO/RL-style model-intrinsic methods.
+- **Not allowed at inference:** external model/API calls, calculators, code interpreters, SymPy/Python tool use, retrieval, or other tool-augmented generation.
+- **Submission split:** the upload must contain predictions for **private** problems, not public validation problems.
+
 ## Success criteria
 
 - **Submission validity:** One CSV row per `id` in `private.jsonl`; header `id,response`; `response` is the **complete** model output used at inference time.
+- **Expected private row count:** current competition UI says the submission should have **943 rows plus header**.
 - **Local quality:** On the public set, scores from `judger.py` (and related utilities) reflect how well extracted answers match ground truth — see competition rules for exact metrics.
 - **Format correctness:** Free-form items need **all** sub-answers correct when evaluated; MCQ needs the selected letter to match ground truth (evaluation extracts answers from the response trace).
+
+## Current implementation snapshot
+
+As of 2026-05-01, the notebook is configured for a practical public validation batch:
+
+- Required model: **`Qwen/Qwen3-4B-Thinking-2507`**
+- Public validation size: **`N_QUESTIONS = 50`**
+- Prompting: structured **UNDERSTAND / PLAN / SOLVE / VERIFY / ANSWER**
+- Self-consistency code: implemented, but current validation default is **off** due to runtime
+- Submission export: notebook Section 10 writes a quoted CSV with `id,response`
+
+For a first private upload, switch `DATA_PATH = PRIVATE_PATH`, keep `N_QUESTIONS = None`, set `SAVE_EVAL = False`, skip scoring/summary, then run save + CSV.
 
 ## Deliverables
 
@@ -43,4 +63,6 @@ This is **not** “training a new LLM from scratch” in the starter flow; weigh
 ## Related docs
 
 - `DATASETS.md` — field schema, formats, examples.
-- `STATUS.md` — current checklist and planned notebook / pipeline steps.
+- `STATUS.md` — what’s implemented vs still open (inference notebook, submission path).
+- `DECISIONS.md` — rationale for generation defaults, env split, Transformers vs vLLM default.
+- `ENVIRONMENT_SETUP.md` — conda/venv, HF token, Qwen3-Thinking generation notes.

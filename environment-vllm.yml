@@ -1,16 +1,9 @@
-# Full stack for notebooks + judger + Hugging Face + GPU PyTorch (works on Windows + Linux).
-# vLLM is NOT here — it often fails on native Windows; use environment-vllm.yml on Linux/WSL2
-# or: conda activate ... && pip install "vllm>=0.6.0" after PyTorch is working.
+# Same as environment.yml plus vLLM (use on Linux or WSL2 with NVIDIA GPU).
+# Native Windows: prefer environment.yml — vLLM pip wheels are usually Linux-only.
 #
-# From repo root:
-#   conda env create -f environment.yml
+#   conda env create -f environment-vllm.yml
 #   conda activate cse151b-math-qa
 #   python scripts/register_jupyter_kernel.py
-#
-# Pick kernel: "Python (cse151b-math-qa)" in Jupyter / VS Code / Cursor.
-#
-# CUDA: pytorch-cuda=12.4 needs a recent NVIDIA driver. If the solver errors, try 12.1:
-#   pytorch-cuda=12.1
 
 name: cse151b-math-qa
 channels:
@@ -40,3 +33,4 @@ dependencies:
       - huggingface_hub>=0.24.0
       - bitsandbytes>=0.43.0
       - antlr4-python3-runtime==4.11.1
+      - vllm>=0.6.0

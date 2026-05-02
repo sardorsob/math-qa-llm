@@ -1,6 +1,10 @@
 # CSE 151B Math QA — Python deps for notebooks, judger, and HF inference.
 #
-# Install (recommended):
+# Conda (recommended for a one-shot GPU stack): use `environment.yml` from repo root
+# (`conda env create -f environment.yml` then `python scripts/register_jupyter_kernel.py`).
+# Plain pip (venv) below does not install CUDA PyTorch for you — use pytorch.org if needed.
+#
+# Install (venv):
 #   python -m venv .venv
 #   .\.venv\Scripts\Activate.ps1          # Windows PowerShell
 #   # or: source .venv/bin/activate      # macOS / Linux
