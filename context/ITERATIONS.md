@@ -153,3 +153,135 @@ This is an implementation checkpoint, not a completed scored run yet.
 - The notebook attempts to pass Qwen3's native `thinking_budget` into `tokenizer.apply_chat_template`.
 - If the installed tokenizer does not support that kwarg, the helper falls back to a prompt-level budget hint and relies on the phase `max_tokens` cap.
 - For final leaderboard work, use `DATA_MODE="private"` and `N_QUESTIONS=None`; skip scoring and summary because `private.jsonl` has no answers.
+
+---
+
+## Iteration 2 — Phase 2 structured prompts, 50-question public eval (scored)
+
+**Date:** 2026-05-01
+
+### Summary metrics (notebook §8)
+
+| Split | Correct | Total | Accuracy |
+|-------|---------|-------|----------|
+| MCQ | 8 | 20 | 40.00% |
+| Free-form | 11 | 30 | 36.67% |
+| **Overall** | **19** | **50** | **38.00%** |
+
+### Configuration (from `notebooks/02_inference.ipynb`)
+
+| Setting | Value |
+|---------|-------|
+| Model | `Qwen/Qwen3-4B-Thinking-2507` |
+| Backend | vLLM (`USE_VLLM = True`) |
+| `N_QUESTIONS` | `50` |
+| `TEST_RANDOM_SUBSET` | `True` |
+| `RANDOM_SEED` | `42` |
+| `MAX_TOKENS` | `8192` |
+| Prompting | Structured **UNDERSTAND → PLAN → SOLVE → VERIFY → ANSWER** (free-form and MCQ) |
+| Multi-answer handling | `build_prompt()` counts `[ANS]`; appends comma-separated `\boxed{}` hint when > 1 placeholder |
+| MCQ formatting | Reasoning first, then final line `\boxed{X}` only |
+| Self-consistency | `USE_SELF_CONSISTENCY = False` |
+| Scoring | `SAVE_EVAL = True`, public `DATA_PATH`, `Judger` + MCQ letter extract |
+
+### Artifact
+
+| File | Role |
+|------|------|
+| `artifacts/logs/runs/phase2_public_batch_results.jsonl` | 50 lines; fields `id`, `is_mcq`, `gold`, `response`, `correct` |
+
+### Observations
+
+- First **scored run** with the structured prompt framework on a **50-question** public subset.
+- **MCQ accuracy dropped** from 50% (Iteration 1, N=10) to 40% (N=50), likely reflecting the larger and more representative sample rather than prompt regression.
+- **Free-form accuracy improved slightly** from 33.33% to 36.67%, suggesting the structured prompt's multi-answer formatting and simplification rules provide a marginal benefit.
+- **Overall 38%** serves as the prompt-only baseline for comparison with the adaptive multi-phase system.
+- No self-consistency or adaptive retries — single-pass generation only.
+
+### Comparison with Iteration 1
+
+| Metric | Iteration 1 (N=10) | Iteration 2 (N=50) | Delta |
+|--------|---------------------|---------------------|-------|
+| MCQ | 50.00% (2/4) | 40.00% (8/20) | −10.00 pp |
+| Free-form | 33.33% (2/6) | 36.67% (11/30) | +3.34 pp |
+| Overall | 40.00% (4/10) | 38.00% (19/50) | −2.00 pp |
+
+Note: Iteration 1 used a 10-question random subset; Iteration 2 uses 50. The larger sample gives a more reliable accuracy estimate.
+
+---
+
+## Iteration 3 — adaptive multi-phase inference, 50-question public eval (scored)
+
+**Date:** 2026-05-03
+
+### Summary metrics (notebook §8)
+
+| Split | Correct | Total | Accuracy |
+|-------|---------|-------|----------|
+| MCQ | 11 | 20 | 55.00% |
+| Free-form | 10 | 30 | 33.33% |
+| **Overall** | **21** | **50** | **42.00%** |
+
+### Configuration (from `notebooks/02_inference.ipynb`)
+
+| Setting | Value |
+|---------|-------|
+| Model | `Qwen/Qwen3-4B-Thinking-2507` |
+| Backend | vLLM (`USE_VLLM = True`) |
+| `N_QUESTIONS` | `50` |
+| `TEST_RANDOM_SUBSET` | `True` |
+| `RANDOM_SEED` | `42` |
+| `DATA_MODE` | `"public"` |
+| Phase 1 | All questions; `thinking_budget=1024`, `max_tokens=2048`, `N=1` |
+| Phase 2 | Uncertain only; `thinking_budget=4096`, `max_tokens=6144`, `N=4`, majority vote |
+| Phase 3 | Still-uncertain only; `thinking_budget=None`, `max_tokens=8192`, `N=8`, temperature `0.7` |
+| Uncertainty triggers | Finish reason `length`, no `\boxed{}`, answer section too short, weak consensus |
+| Checkpointing | `artifacts/logs/runs/adaptive_public_v1_checkpoint.jsonl` |
+
+### Phase usage
+
+| Phase | Count | Percentage |
+|-------|-------|------------|
+| Phase 1 (resolved) | 7 | 14% |
+| Phase 2 (escalated) | 17 | 34% |
+| Phase 3 (max budget) | 26 | 52% |
+| **Still uncertain after all phases** | **23** | **46%** |
+
+### Finish-reason diagnostics
+
+| Finish Reason | Count | Percentage |
+|---------------|-------|------------|
+| `stop` | 31 | 62% |
+| `length` (truncated) | 19 | 38% |
+
+### Artifact
+
+| File | Role |
+|------|------|
+| `artifacts/logs/runs/adaptive_public_v1_results.jsonl` | 50 lines; includes `phase_used`, `finish_reason`, `consensus_count`, `n_samples` |
+| `artifacts/logs/runs/adaptive_public_v1_checkpoint.jsonl` | Checkpoint for resume |
+
+### Observations
+
+- **Overall accuracy improved to 42%**, a **+4 pp gain** over the Phase 2 prompt-only baseline (38%) and **+2 pp** over the initial 10-question smoke test (40%).
+- **MCQ accuracy jumped to 55%** (+15 pp over Iteration 2), the largest single improvement across all iterations. The adaptive retry mechanism appears particularly effective for MCQ, where the model's initial reasoning is often on the right track but needs additional thinking budget to arrive at the correct letter.
+- **Free-form accuracy remained flat at 33.33%**, slightly below Iteration 2's 36.67%. Free-form problems present persistent challenges related to multi-answer formatting, numeric precision, and answer diversity that adaptive retries alone do not resolve.
+- **52% of questions escalated to Phase 3**, indicating that the majority of the 50-question sample is genuinely difficult for the 4B model under constrained thinking budgets.
+- **38% of final responses were truncated** (finish reason `length`), even at Phase 3's maximum `max_tokens=8192`. Truncation remains a significant source of answer loss and should be a priority for the next iteration.
+- **46% of questions remained uncertain** after all three phases, suggesting a ceiling on what inference-time methods can achieve without model improvement (e.g., fine-tuning).
+
+### Comparison across all iterations
+
+| Iteration | Config | MCQ | Free-form | Overall |
+|-----------|--------|-----|-----------|---------|
+| 1 — starter baseline | vLLM, generic prompt, N=10 | 50.00% (2/4) | 33.33% (2/6) | 40.00% (4/10) |
+| 2 — structured prompts | vLLM, UNDERSTAND/PLAN/SOLVE/VERIFY/ANSWER, N=50 | 40.00% (8/20) | 36.67% (11/30) | 38.00% (19/50) |
+| 3 — adaptive multi-phase | vLLM, 3-phase adaptive + majority vote, N=50 | **55.00% (11/20)** | 33.33% (10/30) | **42.00% (21/50)** |
+
+### Next ideas (not done)
+
+- Increase `max_tokens` beyond 8192 (e.g., 16384) for Phase 3 to reduce the 38% truncation rate.
+- Add prompt-level conciseness instructions to reduce reasoning verbosity without sacrificing answer quality.
+- Investigate free-form failures to distinguish between reasoning errors and formatting/extraction failures.
+- Run full private inference (`DATA_MODE="private"`, `N_QUESTIONS=None`) for the first leaderboard submission.
+- Consider QLoRA fine-tuning on external math corpora if prompt-only improvements plateau.
