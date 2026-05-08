@@ -68,12 +68,13 @@ Re-count after any official data refresh. **Observed once** from a local `public
 |--------|--------|
 | Public line count | 1126 |
 | Public MCQ / free-form | 375 MCQ, 751 free-form |
-| Private line count | 943 expected by competition upload UI (verify locally with `private.jsonl`) |
+| Private line count | 943 observed locally / expected by competition upload UI |
 
 ## Current workflow notes
 
 - `public.jsonl` is for validation only. A CSV generated from the public split is **not** a valid leaderboard submission.
-- `N_QUESTIONS = None` means “all rows in the currently selected `DATA_PATH`,” not necessarily private rows.
-- Current notebook validation setting is `DATA_PATH = public.jsonl` and `N_QUESTIONS = 50`, so it should generate/score 50 public examples after the config and dataset cells are rerun.
-- For final submission set `DATA_PATH = PRIVATE_PATH`, `N_QUESTIONS = None`, and `SAVE_EVAL = False`; then skip scoring because private rows have no `answer`.
+- `N_QUESTIONS = None` means “all rows in the currently selected split,” not necessarily private rows. With `DATA_MODE="public"` this is 1126 public rows; with `DATA_MODE="private"` this is 943 private rows.
+- Current notebook source default is `DATA_MODE="public"` and `N_QUESTIONS=None`, so it will process all public rows unless changed.
+- For final submission set `DATA_MODE="private"` and `N_QUESTIONS=None`; then skip scoring because private rows have no `answer`.
 - The generated CSV must contain **all 943 private ids** with columns exactly `id,response`.
+- Before spending GPU time, rerun the dataset cell and confirm it prints **943** loaded/running rows for private.

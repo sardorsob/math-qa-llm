@@ -16,14 +16,35 @@
   - Install cell: `sys.executable`-based pip hints; kernel note (no reliance on `!source`)
 - [x] Section 3 dataset markdown: public vs private fields, `[ANS]`, answer shapes
 - [x] **Iteration 1 (first eval)** — metrics + config + per-row notes in **`ITERATIONS.md`**; artifact `artifacts/logs/runs/starter_results.jsonl` (10 rows); summary row in `structure.md`
-- [x] **Phase 2 notebook plan implemented and corrected for competition rules** — structured math/MCQ prompts, adaptive multi-pass generation, optional self-consistency / majority vote on uncertain questions, truncation/uncertainty diagnostics, checkpointing, and Section 10 CSV export. The model is locked back to the required **`Qwen/Qwen3-4B-Thinking-2507`** after a temporary invalid 8B model experiment was rejected.
+- [x] **Phase 2 notebook plan implemented and corrected for competition rules** — structured math/MCQ prompts, adaptive retry generation, self-consistency / majority vote on uncertain questions, truncation/uncertainty diagnostics, checkpointing, and Section 10 CSV export. The model is locked back to the required **`Qwen/Qwen3-4B-Thinking-2507`** after a temporary invalid 8B model experiment was rejected.
+- [x] **Current notebook audit completed (2026-05-06)** — `notebooks/02_inference.ipynb` is now a two-phase `adaptive_{DATA_MODE}_v2` implementation, not the earlier three-phase `v1` plan.
 
 ## In progress
 
-- [ ] **WSL2 + vLLM adaptive validation run** — current notebook is set for `DATA_MODE="public"`, `N_QUESTIONS=50`, adaptive Phase 1/2/3, checkpoint `adaptive_public_v1_checkpoint.jsonl`, output `adaptive_public_v1_results.jsonl`
+- [ ] **Current notebook default is still public** — `DATA_MODE="public"`, `N_QUESTIONS=None`, `RUN_NAME="adaptive_public_v2"`. This will run all 1126 public rows unless changed before generation.
 - [ ] Full **`private.jsonl`** inference + **`SAVE_EVAL=False`** + submission CSV (`id`, `response`)
 - [x] Notebook Section 10 CSV export cell added (`id,response`, `csv.QUOTE_ALL`)
 - [ ] Wire **`configs/default.yaml`** + `src/utils/paths.py` (optional consolidation; notebook currently self-contained)
+
+## Current notebook implementation audit (2026-05-06)
+
+This reflects the source cells on disk, not stale notebook output.
+
+| Area | Current source state |
+|------|----------------------|
+| Required model | `MODEL_ID = "Qwen/Qwen3-4B-Thinking-2507"` |
+| Dataset toggle | `DATA_MODE = "public"` by default |
+| Run size | `N_QUESTIONS = None`, so the selected full split is used |
+| Run naming | `RUN_NAME = f"adaptive_{DATA_MODE}_v2"` |
+| Phase 1 | All missing rows in one vLLM batch; `thinking_budget=1024`, `max_tokens=2048`, `N=1`, temperature `0.6` |
+| Phase 2 | All Phase 1 uncertain rows in one flattened vLLM batch; `thinking_budget=4096`, `max_tokens=6144`, `PHASE2_N_SAMPLES=3`, temperature `0.65`, repetition penalty `1.05` |
+| Phase 3 | Removed from current code. Older docs/results mention `adaptive_public_v1` Phase 3, but the notebook source now stops after Phase 2. |
+| vLLM settings | `gpu_memory_utilization=0.78`, `max_model_len=8192`, `max_num_seqs=4`, `max_num_batched_tokens=4096` |
+| Checkpoint | `artifacts/logs/runs/adaptive_public_v2_checkpoint.jsonl` while `DATA_MODE="public"` |
+| Output JSONL | `artifacts/logs/runs/adaptive_public_v2_results.jsonl` after Section 9 save |
+| Submission CSV | Section 10 writes `artifacts/submissions/submission_YYYY-MM-DD.csv` from `OUTPUT_PATH` |
+
+Critical warning: the last long run accidentally used the public split because `DATA_MODE` remained `"public"`. A public CSV has 1126 rows and is not a valid leaderboard upload. Private must show 943 loaded rows before generation.
 
 ## Environment status
 
@@ -39,17 +60,20 @@ WSL2 setup: Ubuntu installed via `wsl --install`; Python venv created; full pip 
 | Gap | Notes |
 |-----|--------|
 | **vLLM smoke test** | ✅ Done for random 10 — see `ITERATIONS.md`; watch truncation before `\boxed{}` on long chains |
-| **Private run + CSV** | Notebook can now write quoted CSV; still needs actual private run |
+| **Private run + CSV** | Notebook can now write quoted CSV; still needs actual private run with `DATA_MODE="private"` and 943 loaded rows |
 | **Config centralization** | Paths / `MAX_TOKENS` duplicated in notebook vs YAML |
 | **EDA notebook** | `01_eda.ipynb` still skeleton until loaders land in `src/` |
 | **Notebook stale outputs** | Old notebook outputs may still show 10-question results; trust source cells and rerun config → dataset → generation → scoring in order |
+| **Notebook markdown drift** | Some markdown/output text still describes older v1 settings (Phase 3, `N=4/8`, or 8B wording). Source code cells are the current authority until notebook markdown is cleaned. |
+| **Checkpoint granularity** | Current v2 writes checkpoints after full Phase 1 and full Phase 2, not after every question; an interrupt during a large batched phase may lose in-phase work. |
 
 ## Next steps
 
-1. Run the **50-question public adaptive validation batch**. Confirm the dataset cell prints `random sample of 50`, adaptive generation prints phase counts, and scoring prints `Scoring 50 responses`.
-2. Append the Phase 2 public result to `ITERATIONS.md` and `structure.md`.
-3. If `thinking_budget` is unsupported or Phase 1 is still too slow, reduce `PHASE1_MAX_TOKENS` or skip Phase 2/3 for private.
-4. For a first leaderboard upload, set **`DATA_MODE="private"`**, **`N_QUESTIONS=None`**, skip scoring/summary, then run save + CSV for a 943-row submission.
+1. Before any private run, edit Section 2 to **`DATA_MODE="private"`** and keep **`N_QUESTIONS=None`**.
+2. Rerun Section 2 and Section 3 and confirm the dataset cell prints **943** loaded/running rows.
+3. Confirm `RUN_NAME` changes to `adaptive_private_v2`, so the checkpoint/output do not reuse public artifacts.
+4. Run model load and generation. Skip scoring/summary for private because there is no `answer` field.
+5. Run Section 9 save and Section 10 CSV. Confirm the CSV has **943 data rows plus header** before upload.
 
 ## Docs hygiene
 

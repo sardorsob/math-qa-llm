@@ -69,11 +69,11 @@ Shell lines like `!source .venv/bin/activate` in a notebook **do not** switch th
 Aligned with `notebooks/02_inference.ipynb` as implemented:
 
 - **Model**: **`Qwen/Qwen3-4B-Thinking-2507`**. Do not switch to 8B/14B/etc. for final submissions; the competition requires this model.
-- **`MAX_TOKENS` (`max_new_tokens`)**: **8192** default — thinking models need headroom before `\boxed{}`; **16384** optional for harder items.
+- **`MAX_TOKENS` (`max_new_tokens`)**: current source sets this to **`PHASE2_MAX_TOKENS = 6144`** for the v2 retry path. Earlier experiments used 8192 for maximum Phase 3, but Phase 3 was removed because it was too slow.
 - **`enable_thinking=True`** passed to **`apply_chat_template`** (requires a recent **Transformers** build for this model).
-- Sampling: **`temperature=0.6`**, **`top_p=0.95`**, **`top_k=20`**, **`min_p=0.0`**, **`repetition_penalty=1.0`**, **`pad_token_id=tokenizer.eos_token_id`**.
-- **Current validation batch**: `DATA_PATH=public.jsonl`, `N_QUESTIONS=50`, `USE_SELF_CONSISTENCY=False`.
-- **Optional self-consistency**: implemented in the notebook, but disabled for validation after observed runtime made `N_SAMPLES=8` impractical.
+- Sampling: Phase 1 uses **`temperature=0.6`**, **`top_p=0.95`**, **`top_k=20`**, **`min_p=0.0`**, **`repetition_penalty=1.0`**. Phase 2 uses temperature **`0.65`** and repetition penalty **`1.05`**.
+- **Current notebook default**: `DATA_MODE="public"`, `N_QUESTIONS=None`, `RUN_NAME="adaptive_public_v2"`. Change to `DATA_MODE="private"` before leaderboard generation.
+- **Self-consistency**: current v2 source uses retry-only majority voting with `PHASE2_N_SAMPLES=3`, not blanket self-consistency for every row.
 
 ## GPU, PyTorch, vLLM, and Windows
 
@@ -160,13 +160,13 @@ llm = LLM(
     gpu_memory_utilization=0.78,   # leaves WSL2/8 GB headroom
     max_model_len=8192,
     trust_remote_code=True,
-    max_num_seqs=8,                # supports optional self-consistency batching
-    max_num_batched_tokens=8192,
+    max_num_seqs=4,                # conservative for 8 GB VRAM
+    max_num_batched_tokens=4096,
 )
 
 sampling_params = SamplingParams(
-    max_tokens=MAX_TOKENS,
-    temperature=0.6,
+    max_tokens=MAX_TOKENS,         # currently PHASE2_MAX_TOKENS = 6144
+    temperature=0.6,               # Phase 2 uses 0.65
     top_p=0.95,
     top_k=20,
     min_p=0.0,
@@ -182,7 +182,7 @@ sampling_params = SamplingParams(
 |-------|-------------|-----------|-------------------|
 | Required Qwen3-4B-Thinking | INT8 / bitsandbytes via vLLM | depends on cache + context | observed runtime can still be minutes/question with long thinking traces |
 
-Because observed runtime was much slower than early estimates in the active notebook session, the current plan is **not** full public + self-consistency. Use a 50-question public validation batch first. For a first leaderboard upload, run the 943-row private set with `USE_SELF_CONSISTENCY=False`.
+Because observed runtime was much slower than early estimates in the active notebook session, the current plan is **not** full public + Phase 3. The current notebook source uses a two-phase v2 retry path. For a leaderboard upload, first switch to `DATA_MODE="private"`, rerun the dataset cell, and confirm 943 rows before loading/generating.
 
 ## Do I need to “download the model” or “deploy” it?
 

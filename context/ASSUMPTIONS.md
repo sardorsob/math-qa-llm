@@ -17,3 +17,6 @@ Update when the competition FAQ or your experiments contradict these.
 | Runtime | Observed public generation can be roughly minutes per question with long thinking traces | Full public + private runs, especially with self-consistency, may take days |
 | Public validation | A 50-question public batch is enough to sanity-check prompt/scoring changes before private inference | Full public accuracy remains unknown until a full run is completed |
 | Notebook state | Jupyter outputs can be stale after source changes; kernel variables may still reflect old `N_QUESTIONS=10` runs | Scoring/saving can silently use old `data_run`/`responses` unless config → dataset → generation are rerun |
+| Current split default | Current notebook source still defaults to `DATA_MODE="public"` | Running generation without changing config processes 1126 public rows again, not the 943-row private split |
+| Private row-count guard | The dataset cell printout is the final guard before expensive generation | If it does not print 943 rows for private, the resulting CSV will be invalid for leaderboard upload |
+| Checkpoint names | Checkpoint/output paths are derived from `RUN_NAME = adaptive_{DATA_MODE}_v2` | Reusing a public checkpoint or wrong `DATA_MODE` silently resumes/continues the wrong split |

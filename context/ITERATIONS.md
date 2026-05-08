@@ -285,3 +285,99 @@ Note: Iteration 1 used a 10-question random subset; Iteration 2 uses 50. The lar
 - Investigate free-form failures to distinguish between reasoning errors and formatting/extraction failures.
 - Run full private inference (`DATA_MODE="private"`, `N_QUESTIONS=None`) for the first leaderboard submission.
 - Consider QLoRA fine-tuning on external math corpora if prompt-only improvements plateau.
+
+---
+
+## Full public run mistake — interrupted adaptive v1
+
+**Date:** 2026-05-06
+
+This was not a leaderboard run. It is logged here because it explains lost runtime and the current code simplification.
+
+### What happened
+
+- The notebook was intended to move toward a private submission, but `DATA_MODE` remained `"public"`.
+- The active checkpoint was `artifacts/logs/runs/adaptive_public_v1_checkpoint.jsonl`.
+- The row count was **1126**, which matches the public split, not the private split.
+- A snapshot CSV was created at `artifacts/submissions/adaptive_public_v1_snapshot_20260506_105419.csv`, but it has public ids/responses and must **not** be submitted to the leaderboard.
+
+### Last observed checkpoint counts before stopping
+
+| Count | Value |
+|-------|-------|
+| Rows with at least one response | 1126 |
+| Phase 1 only | 256 |
+| Phase 2 done | 806 |
+| Phase 3 done | 64 |
+| Still needing Phase 3 | 412 |
+| Phase 3 resolved | 12 |
+| Phase 3 still uncertain | 52 |
+
+### Outcome
+
+- The run was interrupted because Phase 3 would take too long.
+- GPU/vLLM stopped after interrupt (`nvidia-smi` dropped from near-full VRAM/utilization to idle-level memory/utilization).
+- The key process lesson is that **private submission requires verifying `DATA_MODE="private"` and 943 rows before generation starts**.
+
+---
+
+## Current implementation audit — adaptive v2 source state
+
+**Date:** 2026-05-06
+
+This is a source-code audit of `notebooks/02_inference.ipynb`, not a scored run.
+
+### Current Section 2 configuration
+
+| Setting | Current value |
+|---------|---------------|
+| `MODEL_ID` | `Qwen/Qwen3-4B-Thinking-2507` |
+| `DATA_MODE` | `"public"` |
+| `DATA_PATH` | `PUBLIC_PATH if DATA_MODE == "public" else PRIVATE_PATH` |
+| `N_QUESTIONS` | `None` |
+| `RUN_NAME` | `adaptive_{DATA_MODE}_v2` |
+| `OUTPUT_PATH` | `artifacts/logs/runs/{RUN_NAME}_results.jsonl` |
+| `CHECKPOINT_PATH` | `artifacts/logs/runs/{RUN_NAME}_checkpoint.jsonl` |
+
+Because the current default is `DATA_MODE="public"` and `N_QUESTIONS=None`, running Section 6 without editing config will process all **1126 public rows** again.
+
+### Current generation design
+
+| Area | Current code |
+|------|--------------|
+| Phase 1 | One flattened/batched vLLM call for all rows missing from checkpoint |
+| Phase 1 params | `thinking_budget=1024`, `max_tokens=2048`, temperature `0.6`, `N=1` |
+| Phase 2 input | Rows still marked `uncertain` after Phase 1 and not already phase 2 |
+| Phase 2 params | `thinking_budget=4096`, `max_tokens=6144`, `PHASE2_N_SAMPLES=3`, temperature `0.65`, repetition penalty `1.05` |
+| Phase 2 batching | Builds `len(uncertain) * PHASE2_N_SAMPLES` prompts, runs one flattened `llm.generate`, then groups samples per question for majority vote |
+| Phase 3 | Removed from current source. Older `adaptive_public_v1` artifacts/docs mention Phase 3, but current `v2` stops after Phase 2. |
+| Checkpointing | Writes once after Phase 1 and once after Phase 2, not after every question |
+| Final `responses` | Built from `response_records` in `data_run` order |
+
+### Current uncertainty / voting logic
+
+- A response is uncertain if finish reason contains `length`, no `\boxed{}` is extractable, or answer-only text after removing `<think>...</think>` is shorter than 30 characters.
+- Phase 2 chooses the most common extracted boxed answer.
+- If there is a tie, the longest trace is used.
+- If the majority count is below `ceil(N/2)`, the chosen result remains marked uncertain.
+
+### Current vLLM load settings
+
+| Setting | Current value |
+|---------|---------------|
+| Quantization | `bitsandbytes` with `load_format="bitsandbytes"` |
+| `gpu_memory_utilization` | `0.78` |
+| `max_model_len` | `8192` |
+| `max_num_seqs` | `4` |
+| `max_num_batched_tokens` | `4096` |
+
+### Required private run procedure
+
+Before the next generation run, change and verify:
+
+```python
+DATA_MODE = "private"
+N_QUESTIONS = None
+```
+
+Then rerun config and dataset cells. The dataset cell must print **943** rows. Only after that should Section 5 model load and Section 6 generation run.

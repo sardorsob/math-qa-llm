@@ -31,15 +31,21 @@ This is **not** “training a new LLM from scratch” in the starter flow; weigh
 
 ## Current implementation snapshot
 
-As of 2026-05-01, the notebook is configured for a practical public validation batch:
+As of 2026-05-06, `notebooks/02_inference.ipynb` is a self-contained vLLM inference notebook with an adaptive two-phase retry design:
 
 - Required model: **`Qwen/Qwen3-4B-Thinking-2507`**
-- Public validation size: **`N_QUESTIONS = 50`**
+- Current default split: **`DATA_MODE = "public"`**
+- Current default size: **`N_QUESTIONS = None`**, meaning all rows in the selected split
+- Current run name: **`adaptive_{DATA_MODE}_v2`**
 - Prompting: structured **UNDERSTAND / PLAN / SOLVE / VERIFY / ANSWER**
-- Self-consistency code: implemented, but current validation default is **off** due to runtime
+- Phase 1: all selected rows, `thinking_budget=1024`, `max_tokens=2048`, one sample
+- Phase 2: only uncertain rows, `thinking_budget=4096`, `max_tokens=6144`, `PHASE2_N_SAMPLES=3`, majority vote
+- Phase 3: removed from current source after the earlier full-public `v1` run proved too slow
 - Submission export: notebook Section 10 writes a quoted CSV with `id,response`
 
-For a first private upload, switch `DATA_PATH = PRIVATE_PATH`, keep `N_QUESTIONS = None`, set `SAVE_EVAL = False`, skip scoring/summary, then run save + CSV.
+For a private upload, switch **`DATA_MODE = "private"`**, keep **`N_QUESTIONS = None`**, rerun config + dataset cells, confirm **943 rows**, skip scoring/summary, then run save + CSV.
+
+Important: a CSV produced from the public split has **1126** rows and is not a valid leaderboard submission.
 
 ## Deliverables
 
