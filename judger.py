@@ -753,7 +753,8 @@ class Judger:
         try: # can be parsed by python directly
             pred_value = float(pred)
             gold_value = round(float(gold), 6)
-            if abs((pred_value - gold_value)/gold_value) <= self.precision * 1.01:
+            _denom = abs(gold_value) if abs(gold_value) > 1e-12 else 1.0
+            if abs(pred_value - gold_value) / _denom <= self.precision * 1.01:
                 return True
         except:
             pass
@@ -766,7 +767,9 @@ class Judger:
             exp_gold = self.sympy_sub_pi(sympify(parse_latex(gold)))
             #if abs(N(exp_pred) - N(exp_gold)) <= self.precision * 1.01:
             #    return True
-            if abs((exp_pred.evalf() - exp_gold.evalf())/exp_gold.evalf()) <= self.precision * 1.01:
+            _gold_val = exp_gold.evalf()
+            _denom    = abs(_gold_val) if abs(_gold_val) > 1e-12 else 1.0
+            if abs(exp_pred.evalf() - _gold_val) / _denom <= self.precision * 1.01:
                 return True
             if is_scientific_notation(exp_pred) != is_scientific_notation(exp_gold):
                 if is_scientific_notation(exp_pred):
