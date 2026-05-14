@@ -7,6 +7,7 @@ data/raw/*
 data/interim/
 artifacts/logs/runs/*
 !artifacts/logs/runs/.gitkeep
+artifacts/models/
 __pycache__/
 .ipynb_checkpoints/
 *.pyc
