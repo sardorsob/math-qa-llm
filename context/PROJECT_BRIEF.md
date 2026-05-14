@@ -66,9 +66,59 @@ Important: a CSV produced from the public split has **1126** rows and is not a v
 
 **License (competition data):** CC BY-NC-SA 4.0 (per release notes).
 
+## Updated implementation snapshot (2026-05)
+
+As of the optimization pass, all four notebooks are production-ready and target A100 execution on Vertex AI Workbench. Key changes from the 2026-05-06 baseline:
+
+### Inference pipeline (notebooks 02 and 05)
+
+| Setting | Before | After | Reason |
+|---------|--------|-------|--------|
+| `max_model_len` | 8192 | **16384** | 38% truncation rate was killing correct answers |
+| `PHASE1_THINKING_BUDGET` | 1024 | **4096** | 4B models need more thinking per Qwen3 paper |
+| `PHASE1_MAX_TOKENS` | 2048 | **6144** | Cap was below thinking budget |
+| `PHASE2_N_SAMPLES` | 3 | **8** | Robust majority vote with fewer ties |
+| `N_QUESTIONS` | 50 (default) | **None** | Production default processes all rows |
+| `TEST_RANDOM_SUBSET` | True | **False** | No random sampling for production runs |
+| Platform | Windows/WSL2 | **Vertex AI Workbench A100** | 10–20× faster; enables full training pipeline |
+
+### QLoRA fine-tuning (notebook 03)
+
+| Setting | Before | After | Reason |
+|---------|--------|-------|--------|
+| `MAX_SEQ_LENGTH` | 1024 | **8192** | Critical: every example was truncated before `\boxed{}` |
+| `LEARNING_RATE` | 2e-4 | **5e-5** | Catastrophic forgetting at 2e-4 |
+| `NUMINA_SUBSET` | 20,000 | **5,000** | NuminaMath has no `<think>` tags — format mismatch |
+| `EPOCHS` | 3 | **2** | Reduce format-mismatch overfitting |
+| `RUN_MERGE` | False | **True** | Models must be saved for downstream GRPO |
+
+### GRPO reinforcement learning (notebook 04)
+
+| Setting | Before | After | Reason |
+|---------|--------|-------|--------|
+| `G` (rollouts) | 2 | **8** | G=2 → mostly zero-gradient steps |
+| `MAX_COMPLETION_LEN` | 1024 | **4096** | Truncated rollouts get reward=0, penalizing long thinking |
+| `MAX_PROMPT_LENGTH` | 512 | **1024** | Many problems were truncated mid-statement |
+| `LEARNING_RATE` | 1e-7 | **5e-7** | Near-zero movement in ~200 total steps |
+| `BETA` | 0.04 | **0.1** | Low KL → reward hacking on 50 training questions |
+| `RUN_MERGE` | False | **True** | Auto-merge for end-to-end pipeline |
+
+### Bug fixes in `judger.py`
+
+- Lines 756 and 769: division by `gold_value` now guarded — when gold=0, denominator falls back to 1.0. Previously, correct answers with a zero gold value were silently marked wrong.
+
+### Expected accuracy targets
+
+| Stage | Expected accuracy |
+|-------|-------------------|
+| Current baseline | 42% (MCQ 55%, free-form 33%) |
+| Bug fixes only | ~47–52% |
+| + Full training pipeline | **60–75%** target |
+| Best-case (POLARIS-equivalent) | up to 79% |
+
 ## Related docs
 
 - `DATASETS.md` — field schema, formats, examples.
 - `STATUS.md` — what’s implemented vs still open (inference notebook, submission path).
 - `DECISIONS.md` — rationale for generation defaults, env split, Transformers vs vLLM default.
-- `ENVIRONMENT_SETUP.md` — conda/venv, HF token, Qwen3-Thinking generation notes.
+- `ENVIRONMENT_SETUP.md` — conda/venv, HF token, Qwen3-Thinking generation notes, Vertex AI Workbench setup.

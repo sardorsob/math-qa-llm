@@ -8,15 +8,24 @@
 
 ## Layout
 
-- `configs/` — run configuration (`default.yaml`; not yet wired into notebook)
 - `context/` — documentation and project memory (this file, rules, briefs)
 - `data/raw/` — competition JSONL (gitignored; use `.gitkeep` for empty dir)
 - `data/external/` — sample submission and other external references
-- `notebooks/` — EDA and inference
-- `src/` — reusable library code (scaffold / TBD)
-- `scripts/` — CLI utilities (e.g. submission CSV, `register_jupyter_kernel.py`)
+- `notebooks/` — EDA and all four pipeline notebooks (inference, QLoRA, GRPO, private submission)
 - `artifacts/logs/runs/` — per-run JSONL and metadata (gitignored contents)
 - `artifacts/submissions/` — CSVs for leaderboard upload
+
+**Note:** `configs/`, `src/`, and most of `scripts/` were removed in the 2026-05 cleanup pass. These directories contained only scaffold stubs that were never wired into any notebook. Notebooks are self-contained; utility code lives inside notebooks until there is a clear need to extract it.
+
+### Notebooks overview
+
+| Notebook | Purpose | Key settings |
+|----------|---------|-------------|
+| `01_eda.ipynb` | Exploratory data analysis | Skeleton — not yet implemented |
+| `02_inference.ipynb` | Public evaluation + adaptive inference | Phase 1/2 thinking budgets, IS_COLAB, vLLM load |
+| `03_qlora_finetune.ipynb` | QLoRA supervised fine-tuning | MAX_SEQ_LENGTH=8192, LR=5e-5, RUN_MERGE=True |
+| `04_grpo_train.ipynb` | GRPO reinforcement learning | G=8, MAX_COMPLETION_LEN=4096, BETA=0.1, RUN_MERGE=True |
+| `05_private_submission.ipynb` | Private inference → submission CSV | Same inference settings as 02, DATA_MODE=private |
 
 ## Artifact index
 
@@ -37,3 +46,4 @@
 | 2026-05-03 | `02_inference` adaptive public v1 | 50 public rows, 3-phase adaptive retry | 42% overall; MCQ improved, free-form remained low. See `ITERATIONS.md` |
 | 2026-05-06 | `02_inference` interrupted full public v1 | Accidentally left `DATA_MODE="public"`; 1126 public rows | Interrupted during Phase 3; snapshot CSV is public-only and should not be submitted |
 | 2026-05-06 | `02_inference` current source audit | `adaptive_{DATA_MODE}_v2`, two phases only, `DATA_MODE="public"`, `N_QUESTIONS=None` | Private run still pending; must switch to `DATA_MODE="private"` and verify 943 rows |
+| 2026-05-13 | Full pipeline optimization pass | All notebooks, judger.py; see DECISIONS.md and ITERATIONS.md | 15+ bug fixes and hyperparameter changes; requires A100 execution for training notebooks |

@@ -209,3 +209,80 @@ python -c "import vllm; print('vllm ok')"
 - `environment.yml` / `environment-vllm.yml` — conda stacks  
 - `PROJECT_BRIEF.md` / `DATASETS.md` — task and data  
 - `STATUS.md` / `DECISIONS.md` — what’s implemented and why  
+
+---
+
+## Production path — Vertex AI Workbench (GCP A100, recommended for full training)
+
+**Why Vertex AI and not Colab Pro+:** GCP credits ($300 from `console.cloud.google.com`) are entirely separate from Colab Pro+ ($50/month personal subscription). GCP credits buy compute time on Vertex AI Workbench — a managed Jupyter environment with GPU access.
+
+**Cost estimate:** A100 40GB GPU VM on Vertex AI costs approximately $2.50/hr. A full training + inference session (QLoRA 1.5–2hr + GRPO 3–4hr + inference 2hr) costs ~$21, leaving $179 for a second run if needed.
+
+### Why A100 over RTX 3070 desktop
+
+| Aspect | RTX 3070 (local) | A100 40GB (Vertex AI) |
+|--------|-----------------|----------------------|
+| VRAM | 8 GB | 40 GB |
+| vLLM quantization needed | Yes (bitsandbytes) | No (full precision) |
+| max_model_len | 8192 (was crashing at 16384) | 16384+ comfortably |
+| Training batch G=8 feasible | No | Yes |
+| MAX_SEQ_LENGTH=8192 for training | No | Yes |
+| Inference time / question | ~8 min (Transformers) | ~30–60 sec (vLLM) |
+| Full 943-row private run | Days | ~2 hours |
+
+### Setting up Vertex AI Workbench (step-by-step)
+
+1. Go to `console.cloud.google.com`
+2. Search or navigate to **Vertex AI → Workbench**
+3. Enable the Notebooks API if prompted
+4. Click **Create new** → choose **Instance**
+5. Select a zone with A100 availability (try `us-central1-c`, `us-central1-f`, `us-east1-c`, `us-west1-b` — `us-central1-a` often has no A100s)
+6. Under **Machine type**: select GPU → NVIDIA A100 40GB
+7. Set **idle shutdown** to 60–90 minutes to avoid charges while not working
+8. Click **Create** (billing starts when instance is running, not when created)
+9. Click **Open JupyterLab** from the Workbench dashboard
+
+### Uploading your project
+
+Option A — Upload zip: zip the project folder locally, upload via JupyterLab file browser, unzip in terminal.
+
+Option B — Git clone: open a terminal in JupyterLab and run:
+```bash
+git clone https://github.com/<your-username>/math-qa-llm.git
+```
+
+Option C — Google Drive: mount Drive in notebooks (the `colab_setup` cell handles this automatically via `IS_COLAB=True` detection) and keep all large files (model weights, data) on Drive across sessions.
+
+### Running notebooks on Vertex AI
+
+The notebooks now auto-detect Colab/GCP via `IS_COLAB = "google.colab" in sys.modules` (checked after `import google.colab`). When running on Vertex AI:
+
+- Package installation runs automatically in the `colab_setup` cell
+- `DRIVE_BASE` points to your Google Drive for model persistence
+- vLLM runs without quantization at full A100 precision
+- `gpu_memory_utilization=0.90`, `max_num_seqs=16`, `max_num_batched_tokens=32768`
+
+**Recommended run order on A100 (one session, ~8–10 hours):**
+
+| Time | Action |
+|------|--------|
+| 0:00 | Upload project (or git clone) |
+| 0:10 | Run notebook 02 (public inference) to get rejection-sampling targets for QLoRA |
+| 1:40 | Run notebook 03 (QLoRA training) |
+| 3:30 | Run notebook 04 (GRPO training + RUN_MERGE=True) |
+| 7:30 | Run notebook 02 again with merged GRPO model to verify accuracy improvement |
+| 8:30 | Run notebook 05 (private submission) |
+
+### Private data upload
+
+`private.jsonl` cannot be committed to GitHub. On Vertex AI:
+1. Upload to Google Drive
+2. Mount Drive in the notebook (`colab_setup` cell handles this)
+3. The notebook uses `DRIVE_BASE / "data" / "private.jsonl"` path automatically
+
+### Billing notes
+
+- The clock starts as soon as the instance is in **Running** state (not when the notebook is open)
+- Set idle shutdown to 60–90 minutes as a safety net
+- Stop (not delete) the instance between sessions to preserve files locally
+- If files need to persist across stops, save to Google Drive via the `DRIVE_BASE` path logic in the notebooks

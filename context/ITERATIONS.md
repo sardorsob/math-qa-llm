@@ -381,3 +381,96 @@ N_QUESTIONS = None
 ```
 
 Then rerun config and dataset cells. The dataset cell must print **943** rows. Only after that should Section 5 model load and Section 6 generation run.
+
+---
+
+## Pipeline optimization session — 2026-05
+
+**Date:** 2026-05-13 / 2026-05-14
+
+This is an implementation checkpoint, not a scored run. Changes are ready; execution requires A100 on Vertex AI Workbench.
+
+### Research basis
+
+All changes are grounded in published results:
+- **DAPO** (ByteDance/Tsinghua): Clip-Higher, Dynamic Sampling, Token-Level Policy Gradient
+- **Dr. GRPO**: KL penalty calibration for small training sets
+- **POLARIS-4B**: Qwen3-4B reaches 79% AIME with G=8+ GRPO in ~700 RL steps
+- **Best-of-Majority**: N=8 sampling with majority vote vs N=3
+- **Qwen3 technical report**: 4B models gain +15–20% from 0→4K thinking budget
+
+### Root causes identified (why 42% was the ceiling)
+
+| Category | Issue | Effect |
+|----------|-------|--------|
+| Bug | `judger.py` divides by gold when gold=0 | Correct answers silently marked wrong |
+| Bug | `max_model_len=8192` too small | 38% of outputs truncated, no `\boxed{}` possible |
+| Bug | `PHASE1_THINKING_BUDGET=1024` | 4B model insufficient thinking; wrong answers sent to Phase 2 |
+| Bug | `PHASE1_MAX_TOKENS=2048 < thinking_budget` | Output cap less than thinking budget — contradiction |
+| Training | `MAX_SEQ_LENGTH=1024` in QLoRA | Every training example truncated before `</think>` or `\boxed{}` |
+| Training | `LEARNING_RATE=2e-4` in QLoRA | Catastrophic forgetting of Qwen3 reasoning pattern |
+| Training | `G=2` in GRPO | Most batches had zero gradient; no learning signal |
+| Training | `MAX_COMPLETION_LEN=1024` in GRPO | Rollouts truncated → reward=0 → model penalized for thinking |
+| Training | `LEARNING_RATE=1e-7` in GRPO | Near-zero parameter movement in ~200 total steps |
+| Training | `BETA=0.04` in GRPO | Reward hacking on 50-question training set |
+
+### All changes made
+
+**Inference notebooks (02, 05):**
+- `max_model_len`: 8192 → **16384**
+- `_batch_tok` (Colab): 16384 → **32768**
+- `PHASE1_THINKING_BUDGET`: 1024 → **4096**
+- `PHASE1_MAX_TOKENS`: 2048 → **6144**
+- `PHASE2_N_SAMPLES`: 3 → **8**
+- `TEST_RANDOM_SUBSET`: True → **False** (production default)
+- `N_QUESTIONS`: now **None** by default
+- `IS_COLAB` auto-detection + `colab_setup` cell added
+- Assert order fixed in notebook 05 (was before IS_COLAB block)
+
+**QLoRA notebook (03):**
+- `MAX_SEQ_LENGTH`: 1024 → **8192**
+- `LEARNING_RATE`: 2e-4 → **5e-5**
+- `NUMINA_SUBSET`: 20,000 → **5,000**
+- `EPOCHS`: 3 → **2**
+- `RUN_MERGE`: False → **True**
+- `IS_COLAB` auto-detection + Drive path logic added
+
+**GRPO notebook (04):**
+- `G`: 2 → **8**
+- `MAX_COMPLETION_LEN`: 1024 → **4096**
+- `MAX_PROMPT_LENGTH`: 512 → **1024**
+- `LEARNING_RATE`: 1e-7 → **5e-7**
+- `BETA`: 0.04 → **0.1**
+- `RUN_MERGE`: False → **True**
+- `IS_COLAB` auto-detection + Drive path logic added
+
+**`judger.py`:**
+- Line 756: division guard for gold=0
+- Line 769: division guard for gold=0
+
+**Repository cleanup:**
+- Deleted: `src/`, `scripts/create_*.py`, `scripts/generate_submission.py`, `scripts/register_jupyter_kernel.py`, `configs/default.yaml`, all patch scripts (`patch_nb02.py`, `patch_notebook.py`, `patch_tokens.py`)
+
+### Expected accuracy after A100 run
+
+| Checkpoint | Expected accuracy |
+|------------|-------------------|
+| Baseline (current) | 42% (MCQ 55%, free-form 33%) |
+| Inference fixes only | ~47–52% |
+| + QLoRA fine-tuning | ≥42% (should preserve or improve) |
+| + GRPO (G=8, 700 steps) | **60–75%** target |
+| Best-case (POLARIS-equivalent) | up to 79% |
+
+### Next scored run to log
+
+After executing on A100, append results here:
+
+| Metric | Value |
+|--------|-------|
+| Date | TBD |
+| Platform | Vertex AI Workbench A100 40GB |
+| Config | Merged GRPO model, Phase 1 budget=4096, max_model_len=16384, N_SAMPLES=8 |
+| MCQ accuracy | TBD |
+| Free-form accuracy | TBD |
+| Overall accuracy | TBD |
+| Truncation rate | TBD (target: <5%) |

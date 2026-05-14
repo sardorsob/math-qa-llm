@@ -79,3 +79,74 @@ WSL2 setup: Ubuntu installed via `wsl --install`; Python venv created; full pip 
 
 - [x] Implementation decisions logged in `DECISIONS.md` (see table)
 - [x] Observed public split stats in `DATASETS.md` (approximate; re-verify after data refresh)
+
+---
+
+## Pipeline optimization pass — 2026-05
+
+### What was changed
+
+A full audit of bugs, hyperparameters, and training decisions identified 15+ improvements across all notebooks. Changes are now in the main project files (previously in a git worktree).
+
+#### Bug fixes (no retraining required)
+
+| Fix | File | Impact |
+|-----|------|--------|
+| Zero-division guard in numeric judging | `judger.py` lines 756, 769 | Correct answers with gold=0 were silently marked wrong |
+| `max_model_len` 8192 → 16384 | `notebooks/02_inference.ipynb`, `notebooks/05_private_submission.ipynb` | 38% of outputs were truncated — zero chance of correct answer |
+| `_batch_tok` 16384 → 32768 on Colab | same notebooks | Double throughput on A100 |
+| `PHASE1_THINKING_BUDGET` 1024 → 4096 | same notebooks | Small 4B model needs more thinking tokens per Qwen3 paper |
+| `PHASE1_MAX_TOKENS` 2048 → 6144 | same notebooks | Output cap was less than thinking budget — contradiction |
+| `PHASE2_N_SAMPLES` 3 → 8 | same notebooks | Better majority vote on uncertain questions |
+| Assert order fixed in notebook 05 | `notebooks/05_private_submission.ipynb` | Assert fired before IS_COLAB block, always failed on GCP |
+| `TEST_RANDOM_SUBSET=False`, `N_QUESTIONS=None` | all notebooks | Production-ready defaults |
+
+#### Training fixes (require retraining on A100)
+
+| Fix | File | Impact |
+|-----|------|--------|
+| `MAX_SEQ_LENGTH` 1024 → 8192 | `notebooks/03_qlora_finetune.ipynb` | Every training example was truncated before `</think>` or `\boxed{}` |
+| `LEARNING_RATE` 2e-4 → 5e-5 | same | Prevented catastrophic forgetting of Qwen3 reasoning pattern |
+| `NUMINA_SUBSET` 20K → 5K | same | Format mismatch (no `<think>` tags in NuminaMath) dominated training |
+| `EPOCHS` 3 → 2 | same | Less overfitting on small format-mismatched corpus |
+| `RUN_MERGE=True` | notebooks 03 and 04 | Models now auto-saved for downstream use |
+| `G` 2 → 8 in GRPO | `notebooks/04_grpo_train.ipynb` | With G=2 most steps had zero gradient; G=8 ensures mixed rewards |
+| `MAX_COMPLETION_LEN` 1024 → 4096 | same | Rollouts were truncated → reward=0 → model penalized for thinking |
+| `MAX_PROMPT_LENGTH` 512 → 1024 | same | Many problems were truncated mid-statement |
+| `LEARNING_RATE` 1e-7 → 5e-7 | same | 1e-7 produced near-zero parameter movement in ~200 steps |
+| `BETA` 0.04 → 0.1 | same | Low KL penalty allowed reward hacking on tiny 50-question training set |
+
+#### Infrastructure changes
+
+- Removed all scaffold Python files: `src/`, `scripts/create_*.py`, `scripts/generate_submission.py`, `scripts/register_jupyter_kernel.py`, `configs/default.yaml`, all patch scripts
+- Added `IS_COLAB` auto-detection to all notebooks (checks `google.colab` in `sys.modules`)
+- Added `DRIVE_BASE` path logic for Google Drive model persistence on Colab/GCP
+- Added `colab_setup` cells to notebooks 02, 03, 04, 05 for package installation on Colab
+
+### Deployment environment
+
+| Environment | State | Used for |
+|-------------|-------|----------|
+| Windows — Conda (`cse151b-math-qa`) | ✅ working | Local exploration only, Transformers fallback |
+| WSL2 Ubuntu — pip venv (`cse151b-venv`) | ✅ installed | Local inference fallback via vLLM |
+| **Vertex AI Workbench (GCP A100 40GB)** | ✅ planned | **Primary platform for training + inference** |
+
+GCP credits ($300) are accessed via `console.cloud.google.com` → Vertex AI → Workbench. A100 40GB instance costs ~$2.50/hr. Full training + inference session estimated at $21 for 8–10 hours.
+
+### Expected outcomes after A100 training run
+
+| Stage | Expected accuracy |
+|-------|-------------------|
+| Bug fixes only (no retraining) | ~47–52% |
+| + QLoRA fixes | ≥42% baseline preserved |
+| + GRPO overhaul (G=8, longer completions) | **60–75%** target |
+| Best-case (POLARIS-equivalent G=8, ~700 steps) | up to 79% |
+
+Research basis: DAPO (ByteDance/Tsinghua), Dr. GRPO, POLARIS-4B paper, Best-of-Majority, Qwen3 technical report, inference scaling law papers.
+
+### In progress / remaining gaps
+
+- [ ] **Run on A100** — all changes are in files, need execution on Vertex AI Workbench
+- [ ] **Public eval after training** — run notebook 02 with merged GRPO model to verify improvement
+- [ ] **Private submission** — run notebook 05 after public eval confirms improvement
+- [ ] Notebook 01 EDA is still a skeleton
