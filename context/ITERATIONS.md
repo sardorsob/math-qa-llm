@@ -474,3 +474,119 @@ After executing on A100, append results here:
 | Free-form accuracy | TBD |
 | Overall accuracy | TBD |
 | Truncation rate | TBD (target: <5%) |
+
+---
+
+## DSMLP vLLM → Transformers migration — 2026-05-16
+
+**Type:** Implementation change checkpoint (not a scored run — execution pending on DSMLP overnight)
+
+### Root cause: why vLLM had to be dropped
+
+| Layer | Finding |
+|-------|---------|
+| vLLM version | 0.21.0 — only Python 3.13 wheel available on PyPI |
+| Compiled against | CUDA 13 |
+| DSMLP container | `sp26-cuda128` — CUDA 12.8 |
+| Failure mode | `vllm/_C.abi3.so` requires ELF-versioned symbol `LIBCUDART_13.0`, which does not exist in `libcudart.so.12` |
+| Error message | `version 'libcudart.so.13' not found (required by vllm/_C.abi3.so)` |
+| Workarounds tried | Symlink `libcudart.so.13 → libcudart.so.12` (wrong — version tag is in ELF symbol table, not filename); tilelang `libcudart_stub.so` (satisfies dlopen but not ELF symbol version check); `LD_LIBRARY_PATH` patch (same reason); manual `patchelf --replace-needed` (patchelf not available) |
+| Confirmed dead end | All workarounds fail at ELF symbol version verification, not at path resolution |
+
+### What was implemented
+
+**Core inference replacement:** vLLM's `llm.generate(prompts, params)` → HF Transformers `model.generate(**inputs, **gen_kwargs)` via a new `generate_batch()` helper.
+
+Key implementation details:
+
+```
+generate_batch(prompts, gen_kwargs, chunk_size=CHUNK_SIZE):
+  for each chunk of CHUNK_SIZE prompts:
+    tokenize with left-padding (max_length=16384)
+    run model.generate() under torch.no_grad()
+    slice off prompt prefix tokens
+    detect finish_reason by checking last token == eos_token_id
+    decode and return {"text", "finish_reason"}
+    del tensors + torch.cuda.empty_cache()
+```
+
+Left-padding is critical: decoder-only models must see the same positional encodings for all sequences in a batch. Right-padding would shift the context window and corrupt generation.
+
+Finish reason detection: vLLM returned a string `"stop"` or `"length"`. Transformers does not. The equivalent: if the last generated token is not `eos_token_id`, the model ran out of budget → `"length"`. If the last token IS `eos_token_id` → `"stop"`. This feeds directly into `is_uncertain()` which checks for `"length"` in the finish reason.
+
+**Checkpointing upgrade:** Changed from whole-phase checkpoints (one write after all of Phase 1, one after all of Phase 2) to per-chunk in Phase 1 (every 6 questions) and per-question in Phase 2. This was not strictly necessary for vLLM because vLLM completed each phase in seconds/minutes. With Transformers, Phase 1 takes hours — losing it to a pod timeout would cost the full 6-hour allocation.
+
+**Flash Attention 2 → SDPA:** `flash_attn` is not installed in the DSMLP venv. `attn_implementation="flash_attention_2"` raises `ImportError` on model load. PyTorch 2.x ships Scaled Dot-Product Attention as a built-in that uses fused kernels (equivalent to FA2 in practice on A30). Changed to `attn_implementation="sdpa"`. Also fixed `torch_dtype=` → `dtype=` (deprecated parameter name in newer Transformers).
+
+**tqdm progress bar:** Phase 1 previously used `print(..., end="\r")` — a carriage-return overwrite that is invisible in Jupyter output cells. Replaced with `tqdm(total=N, unit="q")` + `pbar.update(len(batch))`, identical to Phase 2's existing bar.
+
+### Parameter changes vs prior optimization pass
+
+| Parameter | Prior (A100/vLLM plan) | DSMLP (A30/Transformers) | Reason for change |
+|-----------|------------------------|--------------------------|-------------------|
+| `USE_VLLM` | `True` | `False` | vLLM broken on DSMLP CUDA 12.8 |
+| `attn_implementation` | `"flash_attention_2"` | `"sdpa"` | `flash_attn` not installed |
+| `torch_dtype` → `dtype` | `torch_dtype=bfloat16` | `dtype=bfloat16` | Deprecation fix |
+| `CHUNK_SIZE` | N/A (vLLM native batching) | `6` | A30 24GB BF16 KV cache budget |
+| `PHASE1_THINKING_BUDGET` | 4096 (A100 plan) | 1024 | Transformers slower; 4× speedup |
+| `PHASE1_MAX_TOKENS` | 6144 (A100 plan) | 4096 | Fewer tokens → faster Phase 1 |
+| `PHASE2_MAX_TOKENS` | 6144 (A100 plan) | 5120 | Minor reduction for Transformers |
+| `PHASE2_N_SAMPLES` | 8 (A100+vLLM plan) | 3 | vLLM handled 8 concurrently; Transformers would take 8× longer |
+| `NUMINA_SUBSET` | 5,000 (format-mismatch fix) | 15,000 | A30 24GB confirmed; more data fits |
+| `G` (GRPO) | 8 (A100 plan) | 4 (already set) | A30 24GB: G=8 OOMs during rollout |
+| Checkpoint frequency | After whole phase | After every chunk (P1) / every question (P2) | Pod timeout recovery |
+| Phase 1 progress indicator | `print(..., end="\r")` | `tqdm` bar | `\r` invisible in Jupyter |
+
+### Architecture of the new generation pipeline
+
+```
+Phase 1: Fast full sweep
+  missing_phase1 = all questions not in checkpoint
+  tqdm(total=len(missing_phase1))
+  for chunk in range(0, len(missing_phase1), CHUNK_SIZE=6):
+    batch = missing_phase1[chunk:chunk+6]
+    prompts = [build_chat_prompt(item, thinking_budget=1024) for item in batch]
+    outputs = generate_batch(prompts, phase1_params)  # model.generate(), left-padded
+    save each result to response_records
+    write_checkpoint(CHECKPOINT_PATH, response_records)  ← every 6 questions
+    pbar.update(6)
+
+Phase 2: Targeted retry of uncertain questions
+  phase1_uncertain = questions where response_records[id].uncertain == True
+  for item in tqdm(phase1_uncertain):
+    prompt = build_chat_prompt(item, thinking_budget=4096, prefix=RETRY_PREFIX)
+    outputs = generate_batch([prompt] * PHASE2_N_SAMPLES=3, phase2_params)
+    chosen = choose_best_sample(outputs)  ← majority vote
+    response_records[item.id] = chosen
+    write_checkpoint(CHECKPOINT_PATH, response_records)  ← every question
+```
+
+### Runtime estimates on DSMLP A30 24GB
+
+| Phase | Questions | Avg tokens | Estimated time |
+|-------|-----------|------------|----------------|
+| Phase 1 | 1,126 | ~1,500 | ~2.3 hrs |
+| Phase 2 (est. 25% uncertain) | ~282 × 3 samples | ~4,500 | ~2.5 hrs |
+| **Total** | — | — | **~4.8 hrs** (fits 6-hr pod) |
+
+### Notebook state after migration
+
+| Notebook | Status |
+|----------|--------|
+| `02_inference.ipynb` | ✅ Transformers path active, SDPA, per-chunk checkpoint, tqdm bar, markdown updated |
+| `03_qlora_finetune.ipynb` | ✅ NUMINA_SUBSET=15K, MAX_SEQ_LENGTH=4096 (unchanged), section headers accurate |
+| `04_grpo_train.ipynb` | ✅ G=4 (A30 safe), Transformers only (no vLLM was ever in this notebook), headers accurate |
+| `05_private_submission.ipynb` | ✅ Same Transformers migration as 02, _fix_vllm_cuda deleted, 7 section headers added |
+
+### Next scored run to log (DSMLP overnight)
+
+| Metric | Expected |
+|--------|----------|
+| Date | TBD (next DSMLP pod) |
+| Platform | DSMLP A30 24GB, sp26-cuda128, Transformers BF16+SDPA |
+| Config | Base Qwen3-4B-Thinking-2507, CHUNK_SIZE=6, Phase1 budget=1024, Phase2 N=3 |
+| MCQ accuracy | TBD (baseline ~42% before training) |
+| Free-form accuracy | TBD |
+| Overall accuracy | TBD |
+| Truncation rate | TBD (target: <15% given shorter budgets vs A100 plan) |
+| Phase 2 uncertain rate | TBD |

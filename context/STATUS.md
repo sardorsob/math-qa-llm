@@ -150,3 +150,71 @@ Research basis: DAPO (ByteDance/Tsinghua), Dr. GRPO, POLARIS-4B paper, Best-of-M
 - [ ] **Public eval after training** — run notebook 02 with merged GRPO model to verify improvement
 - [ ] **Private submission** — run notebook 05 after public eval confirms improvement
 - [ ] Notebook 01 EDA is still a skeleton
+
+---
+
+## DSMLP vLLM → Transformers migration — 2026-05-16
+
+### Why this happened
+
+vLLM 0.21.0 (the only Python 3.13 wheel on PyPI) was compiled against CUDA 13. DSMLP's `sp26-cuda128` container ships CUDA 12.8. The binary `vllm/_C.abi3.so` requires ELF-versioned symbol `libcudart.so.13` which does not exist in CUDA 12.8. `patchelf` is not available on DSMLP. Every workaround attempted (stub symlink, `LD_LIBRARY_PATH`, `tilelang` stub) was confirmed broken. The only correct solution is to use HuggingFace Transformers `model.generate()` instead.
+
+### What changed in the notebooks
+
+#### notebooks/02_inference.ipynb
+
+| Cell | Change | Reason |
+|------|--------|--------|
+| `b9a459bf` (Config) | `VLLM_AVAILABLE=False`, `USE_VLLM=False`, vLLM try/except commented out with `# VLLM:` prefix | vLLM broken on DSMLP CUDA 12.8 |
+| `b9a459bf` (Config) | Added `CHUNK_SIZE=6` | Controls sequences per `model.generate()` call; tuned for A30 24GB BF16 KV budget |
+| `b9a459bf` (Config) | `PHASE1_THINKING_BUDGET` 4096→1024, `PHASE1_MAX_TOKENS` 6144→4096, `PHASE2_MAX_TOKENS` 6144→5120, `PHASE2_N_SAMPLES` 8→3 | Token budget reduced for Transformers path speed; N=3 sufficient for majority vote without vLLM batching efficiency |
+| `ad824e4c` (Helpers) | `make_sampling_params()` now returns a plain dict instead of `SamplingParams` object | HF Transformers `model.generate(**kwargs)` accepts a dict, not a vLLM object |
+| `ad824e4c` (Helpers) | Added `generate_batch()` function | Core replacement for vLLM's `llm.generate()` — handles chunked batching, left-padding, prompt slicing, EOS-based finish reason detection, and CUDA cache clearing |
+| `4b1492d0` (Model load) | Replaced entire vLLM `LLM(...)` block with `AutoModelForCausalLM.from_pretrained(...)` | Transformers path is now primary; VRAM auto-detection: ≥20GB → BF16+SDPA, <20GB → NF4 fallback |
+| `4b1492d0` (Model load) | `attn_implementation="flash_attention_2"` → `"sdpa"`, `torch_dtype=` → `dtype=` | `flash_attn` not installed on DSMLP; SDPA is PyTorch built-in. `torch_dtype` deprecated in newer Transformers. |
+| `4b1492d0` (Model load) | `tokenizer.padding_side = "left"` added | Critical for correct batched decoder-only generation — without this, padding on the right shifts the generation context and produces garbage |
+| `4915f406` (Generation) | Phase 1 loop refactored: `for chunk in chunks → generate_batch() → write_checkpoint()` | Per-chunk crash-safe checkpointing replaces whole-phase checkpoint; blue tqdm bar replaces `\r` print |
+| `4915f406` (Generation) | Phase 2 loop: per-question `generate_batch()` + per-question `write_checkpoint()` | Each retry is saved immediately; pod death loses at most the current in-progress question |
+| All markdown cells | Rewritten to reflect actual Transformers path, removed Phase 3 references, relabeled active vs disabled sections | Titles were describing the old vLLM flow |
+
+#### notebooks/05_private_submission.ipynb
+
+Same model load and generation changes as notebook 02. Additionally:
+- `_fix_vllm_cuda()` function deleted (dead code — was the CUDA stub workaround that never worked)
+- 7 new markdown section headers added (notebook previously had none between code cells)
+
+#### notebooks/03_qlora_finetune.ipynb
+
+| Change | Value | Reason |
+|--------|-------|--------|
+| `NUMINA_SUBSET` | 5,000 → **15,000** | A30 24GB confirmed; more training data fits in the compute budget |
+| `MAX_SEQ_LENGTH` | kept at 4096 | Safe for A30 24GB with NF4 + grad_accum=8; not changed |
+
+#### notebooks/04_grpo_train.ipynb
+
+| Change | Value | Reason |
+|--------|-------|--------|
+| `G` | already 4 (set in prior commit) | A30 24GB: G=8 OOMs during rollout phase; G=4 is safe |
+| `MAX_COMPLETION_LEN` | already 2048 | No further changes needed |
+
+### Current execution environment (DSMLP)
+
+| Item | Value |
+|------|-------|
+| GPU | NVIDIA A30 — 24 GB VRAM |
+| Container | `sp26-cuda128` (CUDA 12.8, Python 3.13) |
+| PyTorch | 2.11.0+cu128 (pre-installed in `/opt/conda`) |
+| vLLM | **disabled** (ELF symbol incompatibility with CUDA 12.8) |
+| Inference | HF Transformers `model.generate()`, BF16+SDPA, CHUNK_SIZE=6 |
+| Estimated Phase 1 throughput | ~270 tok/sec → ~2.5 hrs for 1126 questions |
+| Estimated full run (Phase 1+2) | ~4–5 hrs (fits 6-hr pod) |
+
+### Remaining gaps
+
+| Gap | Notes |
+|-----|-------|
+| **Run notebook 02 on DSMLP overnight** | `DATA_MODE="public"`, `N_QUESTIONS=None`, Phase 1+2 to build rejection-sampling targets for QLoRA |
+| **Run notebook 03 (QLoRA)** | After public inference; needs `adaptive_public_v2_results.jsonl` for rejection sampling |
+| **Run notebook 04 (GRPO)** | Needs 12-hr pod: `export K8S_TIMEOUT_SECONDS=43200` before launch |
+| **Run notebook 05 (private submission)** | After GRPO merge; auto-selects best merged model |
+| **Re-enable vLLM** | Only possible on CUDA 13+ system; would restore N=8 majority vote and full batching speed |
