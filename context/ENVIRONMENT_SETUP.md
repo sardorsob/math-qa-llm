@@ -1,8 +1,42 @@
-# Environment setup
+﻿# Environment setup
 
 ## Same page: what this project does with the LLM
 
 The starter notebook (`notebooks/02_inference.ipynb`) loads the competition-required **pretrained** causal LM from the Hugging Face Hub (**`Qwen/Qwen3-4B-Thinking-2507`**) and runs **inference** (generation + scoring on the public set, or generation + CSV export on the private set). It does **not** walk through fine-tuning or training a new model from scratch. You *can* add finetuning later, but the current notebook flow is: **frozen required model + prompting + decoding**.
+
+## Current recommended path — DSMLP pod + Transformers only
+
+As of **2026-05-26**, the repo’s **current methodology** is:
+
+- run the active pipeline on a **DSMLP pod**,
+- use **Hugging Face Transformers `model.generate()`** as the inference backend,
+- treat older vLLM notes as **historical or fallback context**, not the default workflow.
+
+### Why this is the current methodology
+
+- DSMLP’s CUDA / Python environment is the environment the project is actively using right now.
+- The vLLM path is historically important, but it is not the path we should ask a new contributor to reproduce first.
+- The notebooks, context docs, and execution order now assume the DSMLP + Transformers path by default.
+
+### How this differs from older notes in this file
+
+- Older sections document **WSL2 + vLLM** and **Vertex AI A100** paths. Keep them for historical context and fallback planning.
+- The **current** methodology is narrower and more explicit: **if you want to reproduce what the repo is doing today, start with DSMLP + Transformers**.
+- This is a documentation clarification as much as an environment clarification: the repo should no longer read like vLLM and Transformers are equally active day-to-day.
+
+### Pros and cons of the current path
+
+**Pros**
+
+- Matches the environment the code is actively being run in.
+- Avoids the DSMLP vLLM compatibility dead-end.
+- Makes debugging, documentation, and onboarding more consistent.
+
+**Cons**
+
+- Slower than the ideal vLLM path on a fully compatible stack.
+- Requires the docs to carry more “historical vs current” context because past experiments still matter.
+- Some older environment notes remain relevant only as fallback or future re-enable guidance.
 
 ## Data you need (only files provided)
 
@@ -271,7 +305,7 @@ The notebooks now auto-detect Colab/GCP via `IS_COLAB = "google.colab" in sys.mo
 | 1:40 | Run notebook 03 (QLoRA training) |
 | 3:30 | Run notebook 04 (GRPO training + RUN_MERGE=True) |
 | 7:30 | Run notebook 02 again with merged GRPO model to verify accuracy improvement |
-| 8:30 | Run notebook 05 (private submission) |
+| 8:30 | Run notebook 06 (private submission) |
 
 ### Private data upload
 
@@ -286,3 +320,4 @@ The notebooks now auto-detect Colab/GCP via `IS_COLAB = "google.colab" in sys.mo
 - Set idle shutdown to 60–90 minutes as a safety net
 - Stop (not delete) the instance between sessions to preserve files locally
 - If files need to persist across stops, save to Google Drive via the `DRIVE_BASE` path logic in the notebooks
+

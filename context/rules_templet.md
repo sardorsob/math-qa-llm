@@ -1,4 +1,4 @@
-# development_rules.md
+﻿# development_rules.md
 Universal Project Architecture + Operating Rules for AI-Assisted Development (Cursor + LLMs)
 
 This file is the **single operational contract** for how this repository is structured, how work is performed, and how results are logged so that:
@@ -191,6 +191,20 @@ Notebooks are NOT:
 ### 5.3 Notebook naming
 Use a phase folder plus a numbered stem, e.g. `notebooks/eda/01_<topic>.ipynb`, `notebooks/modeling/02_<topic>.ipynb`, `notebooks/reporting/03_<topic>.ipynb`, …
 
+### 5.3.a Current repo addendum (2026-05-26)
+
+For this project specifically, the intended numbered workflow is:
+
+1. `02_inference.ipynb`
+2. `03_qlora_finetune.ipynb`
+3. `04_grpo_train.ipynb`
+4. `05_train_ebm_verifier.ipynb`
+5. `06_private_submission.ipynb`
+
+This reflects the actual dependency order. The verifier notebook conceptually sits before the private submission notebook because it can produce artifacts used during final candidate selection.
+
+Historical notes about vLLM still belong in the repo, but the **current DSMLP methodology is Transformers-first**. New documentation should describe the active Transformers path first and frame vLLM as historical, fallback, or future re-enable context unless the environment changes.
+
 ### 5.4 Notebook “done” checklist (mandatory)
 A notebook change is not “done” unless:
 - outputs are exported to `artifacts/`
@@ -206,6 +220,15 @@ A notebook change is not “done” unless:
 - Prefer small functions with docstrings.
 - Minimal comments; docstrings explain purpose + inputs/outputs.
 - Avoid noisy prints; use lightweight logging.
+
+### 6.1.a Notebook readability addendum (2026-05-26)
+
+For notebook code in this repo:
+
+- Avoid long machine-looking divider banners and repetitive “status narration” prints.
+- Prefer short, plain-English comments that explain intent rather than narrating every action.
+- Keep progress or diagnostic prints only when they help a human make a decision or confirm state.
+- If a cleanup pass changes presentation only, document it as a readability/maintenance change rather than a model-methodology change.
 
 ### 6.2 Determinism
 If randomness affects results:
@@ -685,3 +708,4 @@ Assumptions / caveats:
 
 Next steps:
 - ...
+

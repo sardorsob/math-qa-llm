@@ -1,4 +1,4 @@
-# Assumptions
+﻿# Assumptions
 
 Update when the competition FAQ or your experiments contradict these.
 
@@ -27,4 +27,19 @@ Update when the competition FAQ or your experiments contradict these.
 | Thinking budget vs max_tokens | `thinking_budget` is a Qwen3-specific kwarg that controls `<think>` section length; `max_tokens` is the hard total cap — the latter must be ≥ `thinking_budget + expected answer length` | If `max_tokens < thinking_budget`, the output cap fires before the thinking budget is reached, silently truncating |
 | GRPO training data | Only 50 public questions are used for RL training (from `public.jsonl`); `judger.auto_judge()` provides binary reward signal | With only 50 training examples and binary rewards, GRPO is highly susceptible to reward hacking without proper KL penalty (BETA) |
 | QLoRA merge requirement | After QLoRA training, `RUN_MERGE=True` must produce a merged model before GRPO training can load it; without merge, GRPO loads the base model instead | If merge is skipped, QLoRA training is wasted — GRPO will overwrite the unmerged adapter |
-| Notebook 05 private path | `private.jsonl` must be uploaded to Google Drive (DRIVE_BASE path) before running notebook 05 on Colab/GCP | If Drive is not mounted or file is missing, the assert at the top of the config cell will fire and halt execution |
+| Notebook 06 private path | `private.jsonl` must be uploaded to Google Drive (DRIVE_BASE path) before running notebook 06 on Colab/GCP | If Drive is not mounted or file is missing, the assert at the top of the config cell will fire and halt execution |
+
+## Current methodology addendum (2026-05-26)
+
+These assumptions clarify the workflow that is current on disk today, not just the historical experiments recorded elsewhere in `context/`.
+
+| Area | Current assumption | Why it matters |
+|------|--------------------|----------------|
+| Primary inference backend | **Hugging Face Transformers `model.generate()` is the active inference path on DSMLP** | This is the method we should document, debug, and reproduce first. vLLM notes remain useful history, but they are no longer the default operating assumption for the pod workflow. |
+| DSMLP runtime | The project is currently optimized around a **DSMLP pod with CUDA 12.8 / A30 24 GB**, not a local Windows machine | Throughput, memory limits, batching, and package compatibility all flow from this constraint. |
+| vLLM status | **vLLM is historical / fallback context, not the current production path** | Old docs that mention vLLM explain why some design choices exist, but new work should assume the Transformers path unless we explicitly move back to a CUDA-13-capable environment. |
+| Notebook execution order | The intended notebook order is now **02 inference → 03 QLoRA → 04 GRPO → 05 EBM verifier → 06 private submission** | The verifier depends on outputs from `02`, and the final submission notebook conceptually belongs at the end of the pipeline. |
+| Verifier placement | The EBM verifier is a **post-inference ranking component**, not an optional afterthought | Its notebook now sits before private submission because the private run can use the verifier head if it exists. |
+| Readability cleanup | The recent cleanup pass changed **comments, notebook wording, and print formatting**, but not the underlying pipeline logic | This matters for trust: the notebooks should look more human-maintained without changing how training or inference actually works. |
+| Tradeoff: Transformers path | We accept slower generation than an ideal vLLM setup in exchange for **working reliably on DSMLP today** | The current methodology prioritizes reproducibility in the available environment over theoretical peak throughput. |
+

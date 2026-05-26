@@ -1,4 +1,4 @@
-# Status
+﻿# Status
 
 ## Done
 
@@ -26,6 +26,34 @@
 - [x] Notebook Section 10 CSV export cell added (`id,response`, `csv.QUOTE_ALL`)
 - [ ] Wire **`configs/default.yaml`** + `src/utils/paths.py` (optional consolidation; notebook currently self-contained)
 
+## Current methodology (2026-05-26)
+
+This is the clearest statement of what the repo is doing **today**.
+
+- **Primary runtime:** DSMLP pod
+- **Primary inference backend:** Hugging Face **Transformers**
+- **Historical backend:** vLLM remains documented for context, but it is not the default workflow we should point people to first
+- **Current notebook order:** `02_inference` → `03_qlora_finetune` → `04_grpo_train` → `05_train_ebm_verifier` → `06_private_submission`
+
+### Why this matters
+
+- The active environment and the active backend now match each other: DSMLP + Transformers.
+- The notebook numbering now matches the conceptual execution order.
+- The recent notebook cleanup was cosmetic and structural, not a change to model behavior.
+
+### Tradeoffs
+
+**Pros**
+
+- Easier onboarding and fewer contradictions between docs and code.
+- Fewer mistaken assumptions that vLLM is still the main path on DSMLP.
+- Clearer separation between “historical experiment history” and “what to run now.”
+
+**Cons**
+
+- The docs are longer because they preserve the historical pivots.
+- Transformers on DSMLP is still a throughput compromise compared with an ideal vLLM stack.
+
 ## Current notebook implementation audit (2026-05-06)
 
 This reflects the source cells on disk, not stale notebook output.
@@ -36,10 +64,12 @@ This reflects the source cells on disk, not stale notebook output.
 | Dataset toggle | `DATA_MODE = "public"` by default |
 | Run size | `N_QUESTIONS = None`, so the selected full split is used |
 | Run naming | `RUN_NAME = f"adaptive_{DATA_MODE}_v2"` |
-| Phase 1 | All missing rows in one vLLM batch; `thinking_budget=1024`, `max_tokens=2048`, `N=1`, temperature `0.6` |
-| Phase 2 | All Phase 1 uncertain rows in one flattened vLLM batch; `thinking_budget=4096`, `max_tokens=6144`, `PHASE2_N_SAMPLES=3`, temperature `0.65`, repetition penalty `1.05` |
+| Backend | **Transformers-only on DSMLP**; `VLLM_AVAILABLE=False`, `USE_VLLM=False` |
+| Phase 1 | Missing rows processed in `CHUNK_SIZE=6` batches; `thinking_budget=1024`, `max_new_tokens=4096`, `N=1`, temperature `0.6` |
+| Phase 2 | Uncertain rows retried with `thinking_budget=4096`, `max_new_tokens=5120`, `PHASE2_N_SAMPLES=3` by default, temperature `0.65`, repetition penalty `1.05` |
+| Verifier integration | `05_train_ebm_verifier.ipynb` can train a verifier head; if the head exists, phase 2 can rerank candidates and may bump `PHASE2_N_SAMPLES` to 8 |
 | Phase 3 | Removed from current code. Older docs/results mention `adaptive_public_v1` Phase 3, but the notebook source now stops after Phase 2. |
-| vLLM settings | `gpu_memory_utilization=0.78`, `max_model_len=8192`, `max_num_seqs=4`, `max_num_batched_tokens=4096` |
+| Model load path | `AutoModelForCausalLM.from_pretrained(...)` with BF16+SDPA on larger GPUs and NF4 fallback on smaller ones |
 | Checkpoint | `artifacts/logs/runs/adaptive_public_v2_checkpoint.jsonl` while `DATA_MODE="public"` |
 | Output JSONL | `artifacts/logs/runs/adaptive_public_v2_results.jsonl` after Section 9 save |
 | Submission CSV | Section 10 writes `artifacts/submissions/submission_YYYY-MM-DD.csv` from `OUTPUT_PATH` |
@@ -50,22 +80,23 @@ Critical warning: the last long run accidentally used the public split because `
 
 | Environment | State | Used for |
 |-------------|-------|----------|
-| Windows — Conda (`cse151b-math-qa`) | ✅ working | Exploration, quick edits, Transformers fallback |
-| WSL2 Ubuntu — pip venv (`cse151b-venv`) | ✅ installed | **Production inference via vLLM** |
+| DSMLP pod | ✅ current primary environment | **Active inference / training methodology via Transformers** |
+| Windows — Conda (`cse151b-math-qa`) | ✅ working | Exploration, quick edits, local inspection |
+| WSL2 Ubuntu — pip venv (`cse151b-venv`) | ✅ installed | Historical / fallback vLLM context, not the current default path |
 
-WSL2 setup: Ubuntu installed via `wsl --install`; Python venv created; full pip stack installed including `vllm`, `transformers`, `torch`, `bitsandbytes`. GPU verified visible via `torch.cuda.get_device_name(0)`. See `ENVIRONMENT_SETUP.md` for full reproducible steps.
+DSMLP is the environment the repo should now optimize for first. WSL2 and Vertex notes remain useful historical or fallback context, but they are no longer the clearest statement of the current operating method. See `ENVIRONMENT_SETUP.md` for the explicit DSMLP + Transformers guidance.
 
 ## Remaining gaps (competition-complete pipeline)
 
 | Gap | Notes |
 |-----|--------|
-| **vLLM smoke test** | ✅ Done for random 10 — see `ITERATIONS.md`; watch truncation before `\boxed{}` on long chains |
+| **Fresh DSMLP public run** | Needed after the latest structural/doc cleanup to regenerate public artifacts under the clarified workflow |
 | **Private run + CSV** | Notebook can now write quoted CSV; still needs actual private run with `DATA_MODE="private"` and 943 loaded rows |
 | **Config centralization** | Paths / `MAX_TOKENS` duplicated in notebook vs YAML |
 | **EDA notebook** | `01_eda.ipynb` still skeleton until loaders land in `src/` |
 | **Notebook stale outputs** | Old notebook outputs may still show 10-question results; trust source cells and rerun config → dataset → generation → scoring in order |
-| **Notebook markdown drift** | Some markdown/output text still describes older v1 settings (Phase 3, `N=4/8`, or 8B wording). Source code cells are the current authority until notebook markdown is cleaned. |
-| **Checkpoint granularity** | Current v2 writes checkpoints after full Phase 1 and full Phase 2, not after every question; an interrupt during a large batched phase may lose in-phase work. |
+| **Notebook markdown drift** | Some markdown/output text may still preserve older v1 or vLLM wording; the source code cells and current context docs are the authority |
+| **Artifact freshness** | The verifier and submission stages depend on fresh outputs from notebook 02; stale public artifacts can propagate to later notebooks |
 
 ## Next steps
 
@@ -79,6 +110,8 @@ WSL2 setup: Ubuntu installed via `wsl --install`; Python venv created; full pip 
 
 - [x] Implementation decisions logged in `DECISIONS.md` (see table)
 - [x] Observed public split stats in `DATASETS.md` (approximate; re-verify after data refresh)
+- [x] Notebook readability pass completed for `02` through `06` on 2026-05-26
+  Focused on comment cleanup, less padded print formatting, and more natural-looking notebook code without changing the underlying pipeline logic.
 
 ---
 
@@ -93,12 +126,12 @@ A full audit of bugs, hyperparameters, and training decisions identified 15+ imp
 | Fix | File | Impact |
 |-----|------|--------|
 | Zero-division guard in numeric judging | `judger.py` lines 756, 769 | Correct answers with gold=0 were silently marked wrong |
-| `max_model_len` 8192 → 16384 | `notebooks/02_inference.ipynb`, `notebooks/05_private_submission.ipynb` | 38% of outputs were truncated — zero chance of correct answer |
+| `max_model_len` 8192 → 16384 | `notebooks/02_inference.ipynb`, `notebooks/06_private_submission.ipynb` | 38% of outputs were truncated — zero chance of correct answer |
 | `_batch_tok` 16384 → 32768 on Colab | same notebooks | Double throughput on A100 |
 | `PHASE1_THINKING_BUDGET` 1024 → 4096 | same notebooks | Small 4B model needs more thinking tokens per Qwen3 paper |
 | `PHASE1_MAX_TOKENS` 2048 → 6144 | same notebooks | Output cap was less than thinking budget — contradiction |
 | `PHASE2_N_SAMPLES` 3 → 8 | same notebooks | Better majority vote on uncertain questions |
-| Assert order fixed in notebook 05 | `notebooks/05_private_submission.ipynb` | Assert fired before IS_COLAB block, always failed on GCP |
+| Assert order fixed in notebook 06 | `notebooks/06_private_submission.ipynb` | Assert fired before IS_COLAB block, always failed on GCP |
 | `TEST_RANDOM_SUBSET=False`, `N_QUESTIONS=None` | all notebooks | Production-ready defaults |
 
 #### Training fixes (require retraining on A100)
@@ -121,7 +154,7 @@ A full audit of bugs, hyperparameters, and training decisions identified 15+ imp
 - Removed all scaffold Python files: `src/`, `scripts/create_*.py`, `scripts/generate_submission.py`, `scripts/register_jupyter_kernel.py`, `configs/default.yaml`, all patch scripts
 - Added `IS_COLAB` auto-detection to all notebooks (checks `google.colab` in `sys.modules`)
 - Added `DRIVE_BASE` path logic for Google Drive model persistence on Colab/GCP
-- Added `colab_setup` cells to notebooks 02, 03, 04, 05 for package installation on Colab
+- Added `colab_setup` cells to notebooks 02, 03, 04, and the private submission notebook (`06_private_submission.ipynb`) for package installation on Colab
 
 ### Deployment environment
 
@@ -148,7 +181,7 @@ Research basis: DAPO (ByteDance/Tsinghua), Dr. GRPO, POLARIS-4B paper, Best-of-M
 
 - [ ] **Run on A100** — all changes are in files, need execution on Vertex AI Workbench
 - [ ] **Public eval after training** — run notebook 02 with merged GRPO model to verify improvement
-- [ ] **Private submission** — run notebook 05 after public eval confirms improvement
+- [ ] **Private submission** — run notebook 06 after public eval confirms improvement
 - [ ] Notebook 01 EDA is still a skeleton
 
 ---
@@ -177,7 +210,7 @@ vLLM 0.21.0 (the only Python 3.13 wheel on PyPI) was compiled against CUDA 13. D
 | `4915f406` (Generation) | Phase 2 loop: per-question `generate_batch()` + per-question `write_checkpoint()` | Each retry is saved immediately; pod death loses at most the current in-progress question |
 | All markdown cells | Rewritten to reflect actual Transformers path, removed Phase 3 references, relabeled active vs disabled sections | Titles were describing the old vLLM flow |
 
-#### notebooks/05_private_submission.ipynb
+#### notebooks/06_private_submission.ipynb
 
 Same model load and generation changes as notebook 02. Additionally:
 - `_fix_vllm_cuda()` function deleted (dead code — was the CUDA stub workaround that never worked)
@@ -216,5 +249,6 @@ Same model load and generation changes as notebook 02. Additionally:
 | **Run notebook 02 on DSMLP overnight** | `DATA_MODE="public"`, `N_QUESTIONS=None`, Phase 1+2 to build rejection-sampling targets for QLoRA |
 | **Run notebook 03 (QLoRA)** | After public inference; needs `adaptive_public_v2_results.jsonl` for rejection sampling |
 | **Run notebook 04 (GRPO)** | Needs 12-hr pod: `export K8S_TIMEOUT_SECONDS=43200` before launch |
-| **Run notebook 05 (private submission)** | After GRPO merge; auto-selects best merged model |
+| **Run notebook 06 (private submission)** | After GRPO merge; auto-selects best merged model |
 | **Re-enable vLLM** | Only possible on CUDA 13+ system; would restore N=8 majority vote and full batching speed |
+

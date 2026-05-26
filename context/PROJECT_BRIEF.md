@@ -1,4 +1,4 @@
-# Project brief
+﻿# Project brief
 
 **Course / competition:** CSE 151B Spring 2026 — mathematical reasoning (free-form and multiple-choice).
 
@@ -47,6 +47,41 @@ For a private upload, switch **`DATA_MODE = "private"`**, keep **`N_QUESTIONS = 
 
 Important: a CSV produced from the public split has **1126** rows and is not a valid leaderboard submission.
 
+## Current methodology clarification (2026-05-26)
+
+The repo now needs to be read with a sharper distinction between **historical exploration** and the **current operating method**.
+
+### Current operating method
+
+- **Inference backend:** Hugging Face **Transformers** on **DSMLP**
+- **Primary inference notebook:** `notebooks/02_inference.ipynb`
+- **Verifier notebook:** `notebooks/05_train_ebm_verifier.ipynb`
+- **Final private submission notebook:** `notebooks/06_private_submission.ipynb`
+
+### What changed
+
+- The project no longer treats vLLM as the default practical path for the active environment.
+- The notebook numbering was updated so the verifier step appears before the private submission step.
+- The notebooks were also cleaned up stylistically so the code reads more like a maintained project and less like generated scaffolding.
+
+### How this differs from older snapshots in this file
+
+- Older snapshots preserved the path from vLLM-centered experimentation to the DSMLP migration.
+- The current methodology is narrower: if someone asks “what should I run today to reproduce the repo’s intended flow?”, the answer should start with **DSMLP + Transformers**, not a choice between vLLM and Transformers.
+
+### Pros and cons of the current methodology
+
+**Pros**
+
+- Reproducible in the environment the repo is actively using.
+- Better aligned with the actual notebook dependency order.
+- Easier to document and debug consistently.
+
+**Cons**
+
+- Slower than a fully compatible vLLM path would be.
+- The repo still has to carry historical notes about older strategies, which makes the context docs longer.
+
 ## Deliverables
 
 - Reproducible code under `src/`, `scripts/`, `notebooks/`.
@@ -70,7 +105,7 @@ Important: a CSV produced from the public split has **1126** rows and is not a v
 
 As of the optimization pass, all four notebooks are production-ready and target A100 execution on Vertex AI Workbench. Key changes from the 2026-05-06 baseline:
 
-### Inference pipeline (notebooks 02 and 05)
+### Inference pipeline (notebooks 02 and 06)
 
 | Setting | Before | After | Reason |
 |---------|--------|-------|--------|
@@ -122,3 +157,4 @@ As of the optimization pass, all four notebooks are production-ready and target 
 - `STATUS.md` — what’s implemented vs still open (inference notebook, submission path).
 - `DECISIONS.md` — rationale for generation defaults, env split, Transformers vs vLLM default.
 - `ENVIRONMENT_SETUP.md` — conda/venv, HF token, Qwen3-Thinking generation notes, Vertex AI Workbench setup.
+

@@ -1,4 +1,4 @@
-# Experiment iterations
+﻿# Experiment iterations
 
 Append-only log of notable runs. Link artifacts under `artifacts/logs/runs/` and note notebook settings used.
 
@@ -416,7 +416,7 @@ All changes are grounded in published results:
 
 ### All changes made
 
-**Inference notebooks (02, 05):**
+**Inference notebooks (02, 06):**
 - `max_model_len`: 8192 → **16384**
 - `_batch_tok` (Colab): 16384 → **32768**
 - `PHASE1_THINKING_BUDGET`: 1024 → **4096**
@@ -425,7 +425,7 @@ All changes are grounded in published results:
 - `TEST_RANDOM_SUBSET`: True → **False** (production default)
 - `N_QUESTIONS`: now **None** by default
 - `IS_COLAB` auto-detection + `colab_setup` cell added
-- Assert order fixed in notebook 05 (was before IS_COLAB block)
+- Assert order fixed in the private submission notebook (now `06_private_submission.ipynb`; at the time this note referred to notebook 05)
 
 **QLoRA notebook (03):**
 - `MAX_SEQ_LENGTH`: 1024 → **8192**
@@ -576,7 +576,7 @@ Phase 2: Targeted retry of uncertain questions
 | `02_inference.ipynb` | ✅ Transformers path active, SDPA, per-chunk checkpoint, tqdm bar, markdown updated |
 | `03_qlora_finetune.ipynb` | ✅ NUMINA_SUBSET=15K, MAX_SEQ_LENGTH=4096 (unchanged), section headers accurate |
 | `04_grpo_train.ipynb` | ✅ G=4 (A30 safe), Transformers only (no vLLM was ever in this notebook), headers accurate |
-| `05_private_submission.ipynb` | ✅ Same Transformers migration as 02, _fix_vllm_cuda deleted, 7 section headers added |
+| `06_private_submission.ipynb` | ✅ Same Transformers migration as 02, _fix_vllm_cuda deleted, 7 section headers added |
 
 ### Next scored run to log (DSMLP overnight)
 
@@ -590,3 +590,38 @@ Phase 2: Targeted retry of uncertain questions
 | Overall accuracy | TBD |
 | Truncation rate | TBD (target: <15% given shorter budgets vs A100 plan) |
 | Phase 2 uncertain rate | TBD |
+
+---
+
+## Methodology clarification and notebook renumbering — 2026-05-26
+
+**Type:** Documentation + structure checkpoint (no intended algorithm change)
+
+### What changed
+
+| Area | Change |
+|------|--------|
+| Current backend description | The context docs now explicitly treat **Hugging Face Transformers on DSMLP** as the active methodology, not just one option among several |
+| Historical vLLM notes | Retained, but reframed as historical / fallback context rather than the default operating path |
+| Notebook order | `06_train_ebm_verifier.ipynb` → `05_train_ebm_verifier.ipynb`; `05_private_submission.ipynb` → `06_private_submission.ipynb` |
+| Notebook readability | Comments and status prints across notebooks 02–06 were cleaned up to look more human-maintained without changing the underlying pipeline logic |
+
+### Why this matters
+
+- The old numbering made the verifier look like it happened after private submission, which was backwards conceptually.
+- The repo had accurate migration history, but the “current methodology” was still too easy to misread as “vLLM if possible, Transformers otherwise.”
+- A new reader should now see the intended flow more clearly: public inference first, then optional training/reranking improvements, then verifier, then private submission.
+
+### Pros and cons
+
+**Pros**
+
+- The repo structure now matches the actual dependency order.
+- Contributors are less likely to optimize for the wrong backend or run notebooks out of order.
+- The context docs are more honest about what is current versus what is historical.
+
+**Cons**
+
+- Historical references need more careful wording because notebook numbers changed.
+- Some old notes remain verbose because they preserve the reasoning behind past pivots, even when the current path is simpler.
+

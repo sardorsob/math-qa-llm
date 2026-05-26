@@ -1,17 +1,17 @@
-# Repository structure
+﻿# Repository structure
 
 **Competition reference:** [151B_SP26_Competition](https://github.com/brooksniu/151B_SP26_Competition) — starter template, dataset narrative, loading patterns. Task definition and schema are summarized in `PROJECT_BRIEF.md` and `DATASETS.md`.
 
 **Environment:** `environment.yml` (full GPU stack; Windows-friendly), `environment-vllm.yml` (adds vLLM on Linux/WSL), `requirements.txt` (venv), `scripts/register_jupyter_kernel.py`, and `ENVIRONMENT_SETUP.md`.
 
-**Inference notebook (implemented):** `notebooks/02_inference.ipynb` — see `STATUS.md` for the full change list. High level: required `Qwen/Qwen3-4B-Thinking-2507`, repo-relative paths, public/private `DATA_MODE`, adaptive vLLM generation, public scoring, private JSONL save, and quoted CSV export.
+**Inference notebook (implemented):** `notebooks/02_inference.ipynb` — see `STATUS.md` for the full change list. High level: required `Qwen/Qwen3-4B-Thinking-2507`, repo-relative paths, public/private `DATA_MODE`, adaptive Transformers-based generation on DSMLP, public scoring, private JSONL save, and quoted CSV export.
 
 ## Layout
 
 - `context/` — documentation and project memory (this file, rules, briefs)
 - `data/raw/` — competition JSONL (gitignored; use `.gitkeep` for empty dir)
 - `data/external/` — sample submission and other external references
-- `notebooks/` — EDA and all four pipeline notebooks (inference, QLoRA, GRPO, private submission)
+- `notebooks/` — EDA and the numbered pipeline notebooks (inference, QLoRA, GRPO, verifier, private submission)
 - `artifacts/logs/runs/` — per-run JSONL and metadata (gitignored contents)
 - `artifacts/submissions/` — CSVs for leaderboard upload
 
@@ -22,10 +22,30 @@
 | Notebook | Purpose | Key settings |
 |----------|---------|-------------|
 | `01_eda.ipynb` | Exploratory data analysis | Skeleton — not yet implemented |
-| `02_inference.ipynb` | Public evaluation + adaptive inference | Phase 1/2 thinking budgets, IS_COLAB, vLLM load |
+| `02_inference.ipynb` | Public evaluation + adaptive inference | Phase 1/2 thinking budgets, IS_COLAB, Transformers load on DSMLP |
 | `03_qlora_finetune.ipynb` | QLoRA supervised fine-tuning | MAX_SEQ_LENGTH=8192, LR=5e-5, RUN_MERGE=True |
 | `04_grpo_train.ipynb` | GRPO reinforcement learning | G=8, MAX_COMPLETION_LEN=4096, BETA=0.1, RUN_MERGE=True |
-| `05_private_submission.ipynb` | Private inference → submission CSV | Same inference settings as 02, DATA_MODE=private |
+| `05_train_ebm_verifier.ipynb` | Train the verifier head used for candidate reranking | Uses public inference artifacts from notebook 02 |
+| `06_private_submission.ipynb` | Private inference → submission CSV | Same inference settings as 02, DATA_MODE=private |
+
+## Current methodology notes (2026-05-26)
+
+- The repo’s **current** execution path is **DSMLP + Hugging Face Transformers**.
+- vLLM is still documented because it explains earlier design choices, but it is not the primary path new work should assume.
+- The notebook numbering now matches the conceptual order of the pipeline: verifier before private submission.
+
+### Pros and cons of the current structure
+
+**Pros**
+
+- The directory order now reflects the actual dependency order.
+- Docs and notebooks are less likely to contradict each other about which backend is active.
+- New contributors can follow the numbered workflow without guessing.
+
+**Cons**
+
+- Historical vLLM notes still exist, so some context sections remain longer than the current workflow alone would require.
+- The pipeline still depends on artifacts flowing from notebook 02 into later stages, so stale outputs remain a practical risk.
 
 ## Artifact index
 
@@ -47,3 +67,6 @@
 | 2026-05-06 | `02_inference` interrupted full public v1 | Accidentally left `DATA_MODE="public"`; 1126 public rows | Interrupted during Phase 3; snapshot CSV is public-only and should not be submitted |
 | 2026-05-06 | `02_inference` current source audit | `adaptive_{DATA_MODE}_v2`, two phases only, `DATA_MODE="public"`, `N_QUESTIONS=None` | Private run still pending; must switch to `DATA_MODE="private"` and verify 943 rows |
 | 2026-05-13 | Full pipeline optimization pass | All notebooks, judger.py; see DECISIONS.md and ITERATIONS.md | 15+ bug fixes and hyperparameter changes; requires A100 execution for training notebooks |
+| 2026-05-26 | Notebook readability cleanup | `02` through `06`; no algorithm changes | Removed machine-looking divider comments, simplified padded status prints, and cleaned notebook code layout while preserving behavior |
+| 2026-05-26 | Methodology clarification + notebook renumbering | Context docs + notebooks `05/06` | Clarified DSMLP + Transformers as the active methodology and renumbered verifier/private notebooks to match the real execution order |
+

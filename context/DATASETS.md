@@ -1,4 +1,4 @@
-# Datasets
+﻿# Datasets
 
 Source: CSE 151B Spring 2026 competition materials. Starter assets and narrative also live at [151B_SP26_Competition](https://github.com/brooksniu/151B_SP26_Competition).
 
@@ -78,3 +78,20 @@ Re-count after any official data refresh. **Observed once** from a local `public
 - For final submission set `DATA_MODE="private"` and `N_QUESTIONS=None`; then skip scoring because private rows have no `answer`.
 - The generated CSV must contain **all 943 private ids** with columns exactly `id,response`.
 - Before spending GPU time, rerun the dataset cell and confirm it prints **943** loaded/running rows for private.
+
+## Methodology addendum (2026-05-26)
+
+The dataset itself did not change, but the way the pipeline uses each split is now more explicit:
+
+- **Notebook 02** is still the public-facing inference/evaluation entrypoint. It produces the public run artifacts that later notebooks depend on.
+- **Notebook 05 (`05_train_ebm_verifier.ipynb`)** now sits before private submission because it consumes public inference artifacts and trains the verifier head used for candidate reranking.
+- **Notebook 06 (`06_private_submission.ipynb`)** is now the terminal step in the workflow. It reads `private.jsonl` and writes the final submission artifacts.
+- No additional official competition dataset files were introduced. The methodology changed, not the dataset contract.
+
+### Why this matters
+
+- **What changed:** the repo now treats the public split as both an evaluation source and a source of training/reranking artifacts for later stages.
+- **How it is different:** earlier notes focused more on direct public-vs-private inference. The current flow makes the dependency on public artifacts more explicit.
+- **Pros:** clearer pipeline order, easier onboarding, and fewer “why does notebook 06 come before 05?” moments.
+- **Cons:** there are now more artifact dependencies between notebooks, so stale outputs from notebook 02 can propagate farther if they are not regenerated deliberately.
+
