@@ -12,3 +12,5 @@ __pycache__/
 .ipynb_checkpoints/
 *.pyc
 LICENSE
+artifacts/models/qlora_v1_merged/
+data/raw/private.jsonl

@@ -1,0 +1,11 @@
+{
+  "backbone": "Qwen/Qwen3-4B-Thinking-2507",
+  "hidden_size": 2560,
+  "type": "ebm_bradley_terry_v1",
+  "trainable_params": 2561,
+  "epochs": 10,
+  "learning_rate": 0.001,
+  "val_ranking_acc": 95.24,
+  "n_train_pairs": 958,
+  "n_val_pairs": 168
+}
