@@ -43,3 +43,16 @@ These assumptions clarify the workflow that is current on disk today, not just t
 | Readability cleanup | The recent cleanup pass changed **comments, notebook wording, and print formatting**, but not the underlying pipeline logic | This matters for trust: the notebooks should look more human-maintained without changing how training or inference actually works. |
 | Tradeoff: Transformers path | We accept slower generation than an ideal vLLM setup in exchange for **working reliably on DSMLP today** | The current methodology prioritizes reproducibility in the available environment over theoretical peak throughput. |
 
+## Post-inference recovery addendum (2026-05-31)
+
+These assumptions cover the truncation crisis discovered after Phase 1+2 completed on the private set.
+
+| Area | Assumption | Why it matters |
+|------|-----------|----------------|
+| Token budget is dominant | **`PHASE1_MAX_TOKENS=4096` and `PHASE2_MAX_TOKENS=5120` were too low** for Qwen3-4B-Thinking on competition math problems | 47.9% of responses (452/943) ran out of tokens before writing `\boxed{}`. All other levers (samples, EBM, prompts) combined matter less than the difference between 4096 and 8192 max tokens. Future projects should set `MAX_TOKENS ≥ 8192` for Phase 1 even at the cost of slower wall-clock time. |
+| Recovery script integrity | The heuristic recovery script **does not modify the model's reasoning**; it only appends `\boxed{X}` to responses where the model produced clear answer signals but ran out of tokens before formalizing them | This is a post-processing step on the model's own output, not synthesis of new answers. The grader extracts from `\boxed{}` either way; recovery just tries harder to find the signal already present. |
+| Recovery is a deadline-driven trade-off | We chose recovery over re-running inference because **re-running with bigger `MAX_TOKENS` would take 1-2 more days** of GPU compute, which the May 31 deadline did not allow | Recovery accuracy is lower than letting the model finish properly. For future projects with more time, prefer re-running with adequate token budgets. |
+| MCQ option validation | The v2 recovery script reads `item["options"]` from `private.jsonl` to know how many options exist per question, and rejects extracted letters outside that range | Prevents extracting "G" for a 5-option question (A-E only). This is purely a safety improvement — it can never make a v1-correct extraction worse, only reject obviously-invalid ones. |
+| Recovery is additive, never destructive | Both v1 and v2 recovery scripts skip responses that already have `\boxed{}` — they only modify truncated responses | Verified via `--compare-with` mode: v1 → v2 has 0 regressions. Existing-correct answers are never replaced with worse extractions. |
+| CSV regeneration is idempotent | `scripts/jsonl_to_csv.py` can be re-run any time to produce the competition CSV from the checkpoint JSONL | Useful when inference completes mid-pod-session and you want a CSV without finishing the notebook. The script mirrors Section 7 of `06_private_submission.ipynb` exactly. |
+

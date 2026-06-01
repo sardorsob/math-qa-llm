@@ -625,3 +625,51 @@ Phase 2: Targeted retry of uncertain questions
 - Historical references need more careful wording because notebook numbers changed.
 - Some old notes remain verbose because they preserve the reasoning behind past pivots, even when the current path is simpler.
 
+---
+
+## 2026-05-31 — Truncation crisis and heuristic recovery
+
+### What this iteration solved
+
+Phase 1+2 inference completed on the private set, but post-inference analysis revealed a serious problem: **47.9% (452/943) of responses had no `\boxed{}` answer** because the model was generating long thinking traces that hit `PHASE1_MAX_TOKENS=4096` (or Phase 2's 5120) before reaching the final boxed answer. The grader's extraction returns empty for those — guaranteed wrong.
+
+### The diagnostic
+
+```
+Phase 1 (max=4096) truncation: 32.5% empty boxed (190/584)
+Phase 2 (max=5120) truncation: 73.0% empty boxed (262/359)  ← worse, because Phase 2 questions are HARDER
+MCQ truncation:                 73.7% empty boxed (221/300)
+Free-form truncation:           35.9% empty boxed (231/643)
+
+All 452 empty responses had finish_reason="length" — every one was truncated.
+```
+
+This explained the Kaggle score (~45%): even with the strong responses being mostly correct, half the answers were unscored.
+
+### Two paths considered
+
+1. **Re-run inference with bigger `MAX_TOKENS` (8192+)** — solves the root cause but requires 1-2 more days of GPU time. Cluster was jammed; deadline was hours away.
+2. **Heuristic post-processing recovery** — scan the truncated reasoning for answer signals, append `\boxed{X}` based on regex extraction. ~10 sec runtime, no GPU. Trade-off: heuristic guesses are weaker than letting the model finish, but available immediately.
+
+Picked option 2 given the deadline pressure.
+
+### What was built
+
+| Script | Role |
+|---|---|
+| `scripts/jsonl_to_csv.py` | Standalone converter that mirrors Section 7 of `06_private_submission.ipynb` so the CSV can be regenerated at any time without re-running the notebook. |
+| `scripts/recover_truncated_answers.py` | v1: confidence-tiered regex (high → med → last_standalone → last_number) plus MCQ letter / free-form number extraction. Coverage 52% → 99.5%. |
+| `scripts/recover_truncated_answers_v2.py` | v2: adds "should be X" patterns, non-anchored `= X`, MCQ option-count validator (rejects out-of-range letters), multi-answer delimiter detection (a) X b) Y), repeated-value confirmation. `--compare-with` flag for side-by-side v1/v2 diff. |
+
+### Results
+
+- v1 lifted Kaggle from ~45% to ~52% (+7%)
+- v2 generated 102 high-confidence recoveries (vs v1's 40), zero regressions vs v1
+- v2 has some questionable cases in `delimiter_multi` and `repeated_value` tiers but no v1-correct answer was replaced with worse
+
+### Why it matters
+
+This iteration confirmed that **token budget is the single biggest lever for Qwen3-4B-Thinking accuracy**, far bigger than sample count, EBM verifier, or prompt engineering. The decision matrix for future projects: set `PHASE1_MAX_TOKENS ≥ 8192` from the start even at the cost of longer wall-clock time, because losing 50% of responses to truncation is catastrophic in a way that more samples can never recover from.
+
+The recovery script remains useful as a safety net for any truncated inference run.
+
