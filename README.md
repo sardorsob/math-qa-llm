@@ -84,7 +84,7 @@ Runtime depends heavily on GPU memory, backend choice, and how many questions es
 
 Practical expectations from this repository:
 
-- On a 24 GB class GPU such as an A30, private-set inference is an hours-scale run, roughly about 4 to 6 hours for the full 943-question private set, plus a short post-processing pass.
+- On a 24 GB class GPU such as an A30, private-set inference is an hours-scale run, roughly about 30 to 50 hours for the full 943-question private set, plus a short post-processing pass.
 - Recovery and CSV writing are fast compared with generation, typically seconds to a few minutes.
 - Larger GPUs with more memory should complete noticeably faster because the script can use larger batches and avoid the most aggressive memory compromises.
 
