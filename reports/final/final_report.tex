@@ -1,0 +1,532 @@
+% =======> To use this template:
+% => Edit authors in this file.
+% => Edit the paper's content itself in the respective sections. Edit as needed
+% => Add any references to references.bib (cite with \cite or \citet)
+% =================================================
+
+\documentclass{article}
+
+% to avoid loading the natbib package, add option nonatbib:
+% \usepackage[nonatbib]{neurips_2024}
+% \PassOptionsToPackage{square,comma,sort,numbers}{natbib}
+\PassOptionsToPackage{numbers, compress}{natbib}
+% \usepackage[numbers]{natbib}
+
+% to compile a preprint version, e.g., for submission to arXiv, add add the
+% [preprint] option:
+\usepackage[preprint]{neurips_2024}
+% \usepackage[nonatbib, preprint]{neurips_2024}
+
+\usepackage[utf8]{inputenc} % allow utf-8 input
+% \usepackage[T1]{fontenc}    % use 8-bit T1 fonts
+% For maths/theorems and such
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{mathtools}
+\usepackage{amsthm}
+\usepackage{float}
+% Use DeclareMathOperator and/or \newcommand to define abbreviations, e.g.:
+\DeclareMathOperator{\R}{\mathbb{R}} % real numbers
+% Recommended, but optional, packages for figures and better typesetting:
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{subfigure}
+\usepackage{subcaption}
+\usepackage{booktabs} % for professional tables (https://www.ctan.org/pkg/booktabs)
+\usepackage{algorithm}  % For algorithms
+\usepackage{algorithmic}
+\usepackage{hyperref} % hyperref makes hyperlinks in the resulting PDF.
+\usepackage{wrapfig}  % For wrapping figures with text
+\usepackage[capitalize,noabbrev]{cleveref}   % For \cref
+\RequirePackage{doi}
+\usepackage{xcolor}         % colors
+\newcommand{\new}[1]{{\color{red} #1}}
+% Color references and URLs
+\usepackage{xcolor, colortbl}
+\definecolor{darkblue}{rgb}{0.19, 0.19, 0.62}
+\hypersetup{
+  colorlinks = true,
+  citecolor  = darkblue,
+  filecolor  = darkblue,
+  urlcolor   = darkblue,
+    % linkcolor  = myred,
+}
+% Todonotes is useful during development; simply uncomment the next line
+%    and comment out the line below the next line to turn off comments
+%\usepackage[disable,textsize=tiny]{todonotes}
+\usepackage[textsize=tiny]{todonotes}
+
+% \input{_macros}
+
+
+
+\title{
+CSE 151B/251B Final Report
+\\
+{\small \url{https://github.com/SatrunsDream/math-qa-llm}} % Note: You can put it in your abstracts or as a footnote in the first page, if you prefer. Note 2: Use \href or \url to link your URL.
+} 
+
+\author{%
+    Tia Irani\\
+    A17303637\\
+    \And
+    Leonel Alejandro Montoya\\
+    A17525034 \\
+    \And
+    Diego Osborn \\
+    A17676487 \\
+    \And
+    Sardor Sobirov\\
+    A17656802\\
+    \and
+    Team: Probably Overfitting
+}
+\begin{document}
+\maketitle
+
+\begin{abstract}
+% Check out \href{https://www.alignmentforum.org/posts/eJGptPbbFPZGLpjsp/highly-opinionated-advice-on-how-to-write-ml-papers#Abstract}{this blog post for tips on how to write a compelling abstract and paper.} \textbf{\textit{Include your final private Kaggle leaderboard score and/or rank, as well as a public Github repo link at the end of the abstract or introduction.}} Please write concisely. The main body of what you want graded in your submission must not be more than \textbf{8 pages}. You can have a supplemental to elaborate further on details that do not make your main body. 
+We develop a mathematical reasoning pipeline for the CSE 151B competition using the pretrained Qwen/Qwen3-4B-Thinking-2507 model. Competition constraints fix the base model and prohibit external tools, so we combine both training-time and inference-time optimization. Our approach includes structured prompting (UNDERSTAND/PLAN/SOLVE/VERIFY/ANSWER), adaptive multi-phase inference with uncertainty-driven compute allocation, parameter-efficient fine-tuning via Quantized Low-Rank Adaptation, reinforcement learning through Group Relative Policy Optimization, and an Energy-Based Model verifier for candidate reranking. At the milestone, inference-time methods alone achieved 42\% overall accuracy on a 50-question public subset. Since then, we completed Quantized Low-Rank Adaptation fine-tuning and full private-set inference on all 943 competition questions. Post-inference analysis revealed that token budget truncation was the dominant accuracy bottleneck---47.9\% of responses lacked a final \texttt{\textbackslash boxed\{\}} answer due to output length limits. A heuristic recovery script restored answer coverage from 52\% to 99.5\%, lifting our Kaggle private leaderboard score from approximately 45\% to \text{approximately 52\%}. Our key finding is that adequate token budgets for thinking models matter more than sampling strategies, verifier reranking, or prompt engineering alone. Code is available at \url{https://github.com/SatrunsDream/math-qa-llm}.
+\end{abstract}
+
+% \section*{Formatting instructions (remove this section in your submission)}
+% Please read the instructions below carefully and follow them faithfully. You can keep the section headers but delete the instructional texts.
+% \paragraph{Hints on writing}
+% \begin{itemize}
+%     \item Each paragraph should convey one main message, typically in the beginning sentence of the paragraph (topical sentence).
+%     \item  Use simple sentences with fewer compounds or clauses. The simpler, the better. Avoid passive tense and use active tense.
+%     \item Use PDF for your figures to ensure the resolution of your images.
+%     \item The captions of Figures and Tables should contain sufficient details to be self-explanatory (readers can understand the figure without referring to the text).
+% \end{itemize}
+
+
+% Figures and tables must be appropriately referenced and discussed in the main text (tip: Use \textbackslash label\{fig:xyz\} and \textbackslash cref\{fig:xyz\}; example:~\cref{fig:example}). Captions must strive to be self-contained.
+% \paragraph{Figures.}
+% \begin{figure}[h]  % Use figure or wrapfigure as needed.
+% \begin{wrapfigure}{r}{0.4\textwidth} % Example: occupy 40% of text width
+%   \vspace{-4mm}  % Force moving the figure up by a little bit
+%   \centering
+%   \fbox{\rule[-.5cm]{0cm}{4cm} \rule[-.5cm]{4cm}{0cm}}
+%   \caption{Sample figure caption.}
+%   \label{fig:example}
+% \end{wrapfigure}
+% \end{figure}
+
+
+% All artwork must be neat, clean, and legible. Lines should be dark enough for
+% purposes of reproduction. The figure number and caption always appear after the figure. The figure caption should be lowercase (except for the first word and
+% proper nouns); figures are numbered consecutively. Captions should be written clearly and, ideally, allow the reader to understand the key message of the figure without having to read the main text.
+
+
+% \paragraph{Tables.}
+% All tables must be centered, neat, clean, and legible.  The table number and
+% title always appear before the table. See~\cref{sample-table} for an example.
+% Captions should be written clearly and, ideally, allow the reader to understand the key message of the table without having to read the main text.
+% \begin{table}[h]
+%   \caption{Sample table title}
+%   \label{sample-table}
+%   \centering
+%   \begin{tabular}{lll}
+%     \toprule
+%     \multicolumn{2}{c}{Part}                   \\
+%     \cmidrule(r){1-2}
+%     Name     & Description     & Size ($\mu$m) \\
+%     \midrule
+%     Dendrite & Input terminal  & $\sim$100     \\
+%     Axon     & Output terminal & $\sim$10      \\
+%     Soma     & Cell body       & up to $10^6$  \\
+%     \bottomrule
+%   \end{tabular}
+% \end{table}
+
+% % % === Introduction
+\section{Introduction}
+\label{sec:intro} 
+% {\color{red}Introduce the problem that you are trying to solve and write 1-2 paragraphs for each of the sub-sections.  Provide a high-level summary in this section instead of detailed descriptions. }
+
+
+\paragraph{Problem Definition}
+Mathematical reasoning remains challenging for modern large language models (LLMs) because it requires precise computation, symbolic manipulation, and multi-step logical deduction \cite{lewkowycz2022minerva, wei2022cot}. Despite recent advances in reasoning-oriented models, many systems continue to struggle with problems requiring exact solutions.
+
+This project addresses the problem of mathematical question answering within the CSE 151B \textit{Pushing the Boundary of LLM Mathematical Reasoning}  Competition. The competition required participants to use the fixed foundation model Qwen/Qwen3-4B-Thinking-2507 \cite{qwen3} while prohibiting external tools such as calculators, symbolic solvers, retrieval systems, and alternative language models. As a result, improvements must come from model-intrinsic methods such as prompt engineering, supervised fine-tuning, reinforcement learning, verifier-guided reasoning, and inference-time optimization.
+
+The dataset consists of mathematical problems written in LaTeX and contains two task types:  multiple-choice questions and free-form questions. Multiple-choice problems require selecting the correct answer from a set of candidate options, while free-form problems require generating one or more exact numerical or symbolic answers. The problems span a wide range of mathematical topics and difficulty levels, including algebra, geometry, probability, calculus, and advanced mathematical reasoning.
+
+Formally, given a mathematical problem $(x)$, the goal is to generate an answer $(y)$ that correctly solves the problem. For free-form questions, all required answers must exactly match the expected numerical or symbolic solution and must be correct in order for the problem to receive credit. For multiple-choice questions, the selected option must exactly match the ground-truth answer. Because the task requires both language understanding and mathematical reasoning, it serves as a useful benchmark for evaluating the reasoning capabilities of language models.
+% {\color{red}Describe in your own words what the deep learning task is.  You may use figures to help your explanation.}
+
+\paragraph{Problem Significance}
+Improvements in mathematical reasoning have important implications for educational tutoring systems, scientific assistants, engineering workflows, and other applications requiring reliable quantitative reasoning. Because mathematical problems have objectively verifiable solutions, they also serve as a useful benchmark for evaluating the reasoning capabilities of language models.
+
+% Mathematical reasoning is widely regarded as one of the strongest benchmarks for evaluating the reasoning capabilities of language models. Unlike many traditional natural language tasks, mathematical problems require models to perform precise computations, maintain logical consistency across multiple steps, and generate answers that are objectively correct rather than merely plausible.
+
+% Improving mathematical reasoning capabilities has important implications across education, science, engineering, and industry. In educational settings, language models can serve as personalized tutors that provide explanations, generate practice problems, and guide students through complex mathematical concepts. In scientific and engineering applications, mathematically capable AI systems can assist with quantitative analysis, model verification, and technical decision-making. Financial institutions, researchers, and analysts may also benefit from systems capable of reliable mathematical reasoning
+
+% Despite progress in large language models, mathematical reasoning remains difficult because models often generate fluent explanations that contain subtle computational or logical errors. These errors can significantly reduce trust in AI systems when used in high-stakes applications. Consequently, developing methods that improve mathematical accuracy remains an important research problem and a critical step toward building more reliable and trustworthy AI systems.
+% {\color{red}Explain  why is your problem important. Provide some real-world examples where successfully solving this task can have a great impact on our daily life and society. }
+
+\paragraph{Technical Challenge}
+Mathematical reasoning presents several challenges that distinguish it from conventional language modeling tasks. 
+
+First, the dataset contains problems across a wide range of mathematical domains and difficulty levels. Questions are represented using \LaTeX \text{ }notation and may require symbolic manipulation, numerical computation, geometric reasoning, or abstract mathematical understanding. The diversity of formats and solution strategies makes it difficult for a single model to generalize effectively across all problem types.
+
+Second, mathematical problems often require long chains of reasoning. Unlike many natural language tasks where approximate answers may be acceptable, mathematical questions require exact solutions. Furthermore, free-form questions are evaluated using exact matching, meaning that formatting differences or small numerical errors can result in an otherwise reasonable solution being marked incorrect.A small error in an intermediate step can propagate through the remainder of the solution and produce an incorrect final answer. This challenge is particularly significant for smaller language models that have limited reasoning capacity.
+
+Third, competition constraints restrict the use of external tools and require all final responses to be generated using the fixed Qwen3-4B-Thinking model. External calculators, symbolic solvers, retrieval systems, and alternative models are prohibited, forcing improvements to come primarily from prompt engineering, inference strategies, training techniques, and model adaptation methods.
+
+Finally, computational efficiency presents an additional challenge. Thinking models frequently generate thousands of tokens before arriving at a final answer. Long reasoning traces increase inference cost and create a risk of output truncation before a final answer can be produced. Balancing reasoning quality, answer completeness, runtime, and hardware limitations therefore became an important component of this project.
+% {\color{red}Why is this project difficult? Think about challenges from (1) data processing (2) model design (3) implementation (4) engineering (5) evaluation.} 
+
+
+\paragraph{Contributions}
+To address these challenges, we developed a comprehensive mathematical reasoning pipeline that combines both inference-time and training-time optimization techniques.
+
+First, we designed a structured prompting framework based on the sequence:
+\begin{center}
+    \textbf{UNDERSTAND $\rightarrow$ PLAN $\rightarrow$ SOLVE $\rightarrow$ VERIFY $\rightarrow$ ANSWER}
+\end{center}
+This encourages systematic reasoning and standardizes answer formatting. Second, we implemented an adaptive inference strategy that dynamically allocates additional reasoning budget to uncertain problems while avoiding unnecessary computation on simpler questions \cite{snell2024scaling}. Third, we explored parameter-efficient supervised fine-tuning using Quantized Low-Rank Adaptation (QLoRA) \cite{dettmers2023qlora} to adapt the model more effectively to mathematical reasoning tasks. Fourth, we applied Group Relative Policy Optimization (GRPO) \cite{shao2024grpo} to further improve reasoning performance through reinforcement learning. Finally, we trained an Energy-Based Model (EBM) verifier \cite{lightman2023verify} capable of evaluating and reranking candidate solutions generated by the language model.
+
+The main contributions of this project are summarized as follows:
+\begin{enumerate}
+    \item \textbf{Structured Mathematical Prompting:} We developed a reasoning-oriented prompting framework that improves consistency, interpretability, and answer formatting.
+    \item \textbf{Adaptive Inference:} We designed a multi-stage inference pipeline that allocates computational resources dynamically based on uncertainty estimates.
+    \item \textbf{QLoRA Fine-Tuning:} We implemented parameter-efficient supervised fine-tuning to improve domain-specific mathematical reasoning performance.
+    \item \textbf{GRPO Reinforcement Learning:} We explored reinforcement-learning-based optimization to further enhance reasoning capabilities.
+    \item \textbf{Verifier-Based Reranking:} We trained an EBM verifier to evaluate candidate responses to improve final answer selection.
+    \item \textbf{Reproducible End-to-End Pipeline:} We developed a complete workflow supporting public evaluation, model training, verifier integration, and private competition submission generation.
+\end{enumerate}
+
+The remainder of this report is organized as follows. Section \ref{sec:relatedwork} reviews related work in LLMs and mathematical reasoning. Section \ref{sec:methods} presents the proposed methodology, including prompting, adaptive inference, fine-tuning, reinforcement learning, and verifier-guided reasoning. Section \ref{sec:experiments} describes the experimental setup and results. Finally, Section \ref{sec:discussion} discusses limitations, lessons learned, and future research directions.
+
+
+% {\color{red} On a high level, explain how existing work solves this problem and what its limitations/issues are. Describe how your final solution effectively addresses (some) of these limitations/issues. Be very precise and clear. Any empirical claims must be justified by your results. You may find it useful to explicitly enumerate your key contributions (e.g., a better architecture/loss function or a more suitable problem/data setup relative to the starter code, an insightful finding/result, an innovative technique or combination of existing techniques, etc.) as follows:
+
+% % Find and cite (use \href{https://www.overleaf.com/learn/latex/Bibliography_management_with_bibtex}{BibTex
+% % }) state-of-the-art works or papers that have tried to solve a similar problem (use \href{https://scholar.google.com/}{Google Scholar} to search). Point out the limitations of the state-of-the-art.
+
+
+% Our main contributions are:
+% \begin{itemize}
+%   \item Contribution A: ...
+%   \item Contribution B: ...  
+%     % etc.
+% \end{itemize}
+%}
+
+% % % === Related Work
+\section{Related Work}
+\label{sec:relatedwork}
+
+\paragraph{LLMs for Reasoning} 
+LLMs have demonstrated strong performance across a wide range of natural language processing tasks. However, mathematical reasoning remains challenging because it requires precise computation, symbolic manipulation, and multi-step logical deduction. Benchmarks such as GSM8K have shown that language models often struggle with complex mathematical problems despite performing well on standard language tasks \cite{wei2022cot}. Minerva \cite{lewkowycz2022minerva} further demonstrated that domain-specific training on mathematical and scientific data can significantly improve mathematical reasoning performance.
+
+% These findings motivate our work, which focuses on improving mathematical reasoning using the competition-required Qwen3-4B-Thinking model \cite{qwen3} through training and inference optimizations rather than modifying the model architecture.
+
+\paragraph{Chain-of-Thought Prompting and Self-Consistency}
+Chain-of-Thought (CoT) prompting improves reasoning performance by encouraging language models to generate intermediate reasoning steps before producing a final answer. \citet{wei2022cot} showed that explicit reasoning traces substantially improve performance on arithmetic and symbolic reasoning tasks. \citet{wang2022selfconsistency} later introduced self-consistency, which generates multiple reasoning paths and selects the most frequently occurring answer.
+
+Our structured prompting framework is inspired by these methods. We employ an 
+\begin{center}
+    \textbf{UNDERSTAND $\rightarrow$ PLAN $\rightarrow$ SOLVE $\rightarrow$ VERIFY $\rightarrow$ ANSWER}
+\end{center}
+prompting strategy and an adaptive inference pipeline that allocates additional reasoning budget to uncertain questions, allowing us to obtain some of the benefits of self-consistency while reducing computational cost.
+
+\paragraph{Parameter-Efficient Fine-Tuning and Verifier-Based Reasoning}
+Parameter-efficient adaptation methods such as LoRA \cite{hu2021lora} and QLoRA \cite{dettmers2023qlora} enable language models to be specialized for downstream tasks without updating all model parameters. These approaches significantly reduce memory requirements while maintaining strong performance. More recently, reinforcement learning methods such as GRPO \cite{shao2024grpo} have demonstrated improvements on reasoning-intensive tasks by optimizing model behavior using reward signals rather than supervised labels alone. Another line of work uses verifier models to evaluate generated solutions and select higher-quality reasoning traces \cite{lightman2023verify}. Prior studies have shown that verifier-guided reranking can improve mathematical reasoning accuracy by identifying more reliable candidate solutions.
+
+Our work combines both directions by exploring QLoRA fine-tuning, GRPO-based optimization, and an EBM verifier to improve mathematical reasoning performance while remaining within competition constraints.
+
+% Describe related papers and contextualize your own work with respect to them. If useful, you can reference and discuss them in the introduction too. Example:
+% \paragraph{Related works topic 1. [0.5pt]} \citet{radford2018improving} introduced the first GPT-1 model...  % This is an example for citing (plz remove)
+
+% \paragraph{Related works topic 2. [0.5pt]}
+% % 
+% % % === Methods
+% % % === Methods
+\section{Methods}
+\label{sec:methods}
+% In this section, clearly describe the technical details of the problem and your approach. If needed, provide the necessary background and cite any sources that you used.
+\subsection{Problem Setting}
+\label{sec:methods_setting}
+This project studies mathematical reasoning using a large language model. Given a mathematical problem (x), the goal is to generate a correct answer (y). Problems may be either multiple-choice questions or free-form questions requiring one or more numerical or symbolic answers. 
+
+We use the pretrained Qwen/Qwen3-4B-Thinking-2507 model \cite{qwen3}. Formally, let the dataset be
+\begin{equation}
+\label{eq:dataset}
+D = \{x_i, y_i\}_{i=1}^N,
+\end{equation}
+where ($x_i$) represents a mathematical problem and ($y_i$) represents the ground-truth correct answer. The model defines a conditional probability distribution 
+\begin{equation}
+\label{eq:cond_prob}
+\mathbb{P}_\theta(y | x),
+\end{equation}
+and generates responses autoregressively. Unlike conventional supervised learning settings, competition constraints prohibit the use of external tools such as calculators, symbolic solvers, retrieval systems, or alternative language models. Consequently, all improvements must come from modifications to prompting strategies, training procedures, and inference-time reasoning techniques.
+
+The primary evaluation objective is answer correctness. Multiple-choice questions require selecting the correct option, while free-form questions require exact matching of all required answers. Because free-form problems often contain multiple answer blanks, even partially correct responses receive no credit. This makes mathematical reasoning significantly more challenging than standard text-generation tasks.
+% Introduce the problem. Formulate your prediction task as an optimization problem and write out the objective (i.e., loss function) that you use to train your model. Describe the dataset. Define the inputs and outputs in mathematical language, describing their meaning in natural language. \textbf{Note:} \textit{The inputs and outputs here should correspond to what your model actually ingests and predicts, respectively}. 
+
+\subsection{Dataset}
+\label{sec:methods_dataset}
+The competition dataset is provided in JSONL format and contains both public and private splits. Each record contains a mathematical problem written in \LaTeX\text{} notation along with metadata describing the task format. The public dataset contains 1,126 labeled examples and is used for development and evaluation, and he private dataset contains 943 unlabeled examples used for leaderboard submissions---as shown in Table \ref{tab:dataset_splits}.  Problems span a broad range of mathematical topics, including algebra, geometry, probability, combinatorics, calculus, and advanced mathematical reasoning. The competition dataset contains two splits and two problem formats---which can be seen summarized in Table \ref{tab:problem_types}.
+
+\begin{table}[h]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{cp{5cm}}
+\hline
+\textbf{Split} & \textbf{Description} \\
+\hline
+Public & 1,126 examples used for development and evaluation. \\
+Private & 943 examples reserved for competition submission and final ranking. \\
+\hline
+\end{tabular}
+\caption{Dataset Splits}
+\label{tab:dataset_splits}
+\end{table}
+
+\begin{table}[h]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{cp{8cm}}
+\hline
+\textbf{Type} & \textbf{Description} \\
+\hline
+Free-Form & Generate one or more exact numerical or symbolic answers. \\
+Multiple-Choice & Select the correct option from a candidate set. \\
+\hline
+\end{tabular}
+\caption{Problem Types}
+\label{tab:problem_types}
+\end{table}
+
+\subparagraph{Free-Form Questions} Free-form questions contain one or more $[ANS]$ placeholders representing required answers. The model must generate all answers correctly for the problem to receive credit. These answers may be numerical values, symbolic expressions, intervals, or ordered tuples.
+
+\subparagraph{Multiple-Choice Questions} Multiple-choice questions provide a set of candidate answers. The model must identify the correct option and produce it in a format that can be extracted reliably by the evaluation system. The diversity of mathematical topics and answer formats creates substantial challenges for generalization and motivates the use of specialized reasoning techniques.
+
+\subsection{Idea Summary}
+\label{sec:idea_summary}
+Our overall objective is to improve mathematical reasoning performance while remaining fully compliant with competition constraints. Rather than relying on a single technique, we combine several complementary approaches that target different stages of the reasoning process.
+
+First, we introduce a structured prompting framework that encourages the model to reason systematically before producing a final answer. Second, we develop an adaptive inference pipeline that allocates additional computation only to difficult or uncertain questions. Third, we explore parameter-efficient supervised fine-tuning using QLoRA and reinforcement learning through GRPO to improve mathematical reasoning capabilities. Finally, we investigate verifier-based reranking through an EBM verifier that evaluates candidate solutions generated by the language model. Figure \ref{fig:reasoning_pipeline} presents an overview of the complete mathematical reasoning pipeline.
+
+\begin{figure}[h]
+% \vspace{-4mm}
+\centering
+\includegraphics[width=0.25\linewidth]{img/Copy of pipeline diagram.drawio.png}
+\caption{Overview of the proposed mathematical reasoning pipeline. Training-time methods (QLoRA and GRPO) are explored to adapt the base Qwen3-4B-Thinking model, while inference-time methods including structured prompting, adaptive inference, and verifier-based reranking improve final answer quality.}
+\label{fig:reasoning_pipeline}
+\end{figure}
+
+By combining training-time and inference-time optimization techniques, the proposed system seeks to improve reasoning quality while maintaining practical computational requirements.
+
+% Describe and motivate your idea to solve the problem.  How is it different from the state-of-the-art method? Provide a sketch of your idea to illustrate your idea. Is there any risk associated with your idea? Provide alternative solutions if your idea does not work out.
+
+\subsection{Method Description}
+\label{sec:method_descrip}
+
+\paragraph{Baseline System} The baseline system consists of direct inference using the pretrained Qwen/Qwen3-4B-Thinking-2507 model and the starter competition prompt. For each problem, the model receives the question text and generates a response using its built-in reasoning capabilities. Initial experiments revealed several recurring failure modes. Many responses contained lengthy reasoning traces that terminated before producing a final answer. Other responses failed due to incorrect formatting, particularly on free-form questions requiring multiple answers. Numerical precision mismatches and inconsistent answer extraction were also common. These observations motivated the development of a more structured reasoning pipeline.
+
+\paragraph{Structured Prompting} Inspired by chain-of-thought prompting \cite{wei2022cot}, we replaced the baseline prompt with a structured reasoning template consisting of five stages:
+
+\begin{center}
+    \textbf{UNDERSTAND $\rightarrow$ PLAN $\rightarrow$ SOLVE $\rightarrow$ VERIFY $\rightarrow$ ANSWER}
+\end{center}
+
+The UNDERSTAND stage encourages the model to identify relevant mathematical concepts and constraints. The PLAN stage requires the model to formulate a solution strategy before beginning computation. During SOLVE, the model performs the required calculations and logical reasoning steps. The VERIFY stage prompts the model to check intermediate results and detect possible errors. Finally, the ANSWER stage produces a clearly formatted final response.
+
+Additional task-specific instructions are provided for each problem type. For free-form questions containing multiple answer blanks, the model is explicitly instructed to preserve the correct answer ordering. For multiple-choice questions, the final answer must appear in the format (\textit{\textbackslash boxed\{X\}}), where (X) denotes the selected option. These modifications improve both reasoning quality and answer extractability.
+
+\paragraph{Adaptive Inference Pipeline} Applying the maximum reasoning budget to every question is computationally expensive and often unnecessary. To address this issue, we developed a two-stage adaptive inference pipeline that allocates additional computation only to uncertain examples.
+
+During Phase 1, all questions are processed using a relatively small reasoning budget. The model generates a single candidate response using a thinking budget of 1024 tokens and a maximum generation length of 4096 tokens. Responses that appear complete and well-formed are accepted immediately. Questions are classified as uncertain when they exhibit one or more failure indicators, such as truncated outputs, missing boxed answers, formatting failures, or incomplete answer sections. These heuristics were derived from error analysis of baseline outputs.
+
+Uncertain questions are routed to Phase 2, where the reasoning budget is increased to 4096 thinking tokens and 5120 maximum generation tokens. Multiple candidate responses are generated and aggregated through majority voting \cite{wang2022selfconsistency}. By concentrating additional computation on difficult questions, the adaptive pipeline approximates the benefits of self-consistency \cite{snell2024scaling} while avoiding the cost of applying expensive reasoning strategies to the entire dataset.
+
+During development, we observed that many easier problems were solved correctly using relatively short reasoning traces, while a smaller subset required substantially larger reasoning budgets to reach the correct answer. This observation motivated the adaptive design. By allocating additional computation only to uncertain examples, the system achieves a better balance between accuracy and efficiency than applying a high-budget reasoning strategy to every problem.
+
+\paragraph{QLoRA Fine-Tuning} While prompt engineering can improve reasoning behavior, it cannot directly modify the model's internal representations. To investigate whether mathematical reasoning performance could be improved through supervised adaptation, we implemented parameter-efficient fine-tuning using QLoRA \cite{dettmers2023qlora}. QLoRA inserts trainable low-rank matrices \cite{hu2021lora} into the transformer architecture while keeping the majority of pretrained parameters frozen. This significantly reduces memory requirements compared with full-model fine-tuning while preserving much of the model's original capability. Training was performed using mathematical question-answer pairs with a maximum sequence length of 8192 tokens and a learning rate of $5 \times 10 ^{-5}$. After training, adapter weights were merged with the base model to produce a deployable checkpoint. QLoRA was selected because it provides an efficient mechanism for domain adaptation without requiring the computational resources associated with full fine-tuning.
+
+\paragraph{GRPO Reinforcement Learning} To further improve reasoning performance, we explored GRPO \cite{shao2024grpo}, a reinforcement learning approach designed specifically for reasoning-intensive language model tasks. For each training example, multiple candidate responses are sampled from the model. These responses are evaluated using an automatic reward function based on answer correctness. GRPO then updates the policy by encouraging responses that achieve higher rewards relative to other candidates within the same group. We used a group size of $(G = 8)$ and a KL regularization coefficient of $(\beta = 0.1)$, following recommendations from \citet{drgrpo2025} for small training sets. This approach encourages the model to develop more effective reasoning strategies while preventing excessive deviation from the original policy.
+
+\paragraph{EBM Verifier} Language models often generate multiple plausible reasoning traces for the same problem. To improve final answer selection, inspired by process-based verification approaches \cite{lightman2023verify}, we trained an EBM verifier capable of evaluating candidate solutions. The verifier receives a mathematical problem together with a candidate response and predicts a score representing the quality of that solution. During inference, multiple candidate solutions generated by the language model are evaluated by the verifier. The candidate that receives the highest verifier score is selected as the model's final prediction. Verifier-guided reranking provides an additional layer of quality control and can identify reasoning traces that appear plausible but contain subtle mathematical errors.
+
+\paragraph{Final System} The final system integrates the previously described components into a unified mathematical reasoning pipeline. Figure \ref{fig:reasoning_pipeline} summarizes the complete workflow of our system. Structured prompts guide the model towards systematic reasoning, adaptive inference allocates additional computation to difficult questions, and verifier-based reranking improves candidate selection. QLoRA and GRPO are explored as training-based approaches for improving the model's reasoning capabilities beyond what can be achieved through prompting alone. Together, these components form a comprehensive mathematical reasoning framework that remains fully compliant with competition requirements while improving robustness, answer formatting, and overall reasoning performance.
+
+% Describe and motivate any relevant design or architectural choices that you explored.  
+% If helpful, include a picture/sketch of your approach or architecture.
+
+% How did you split the training and validation data? How did you normalize inputs and outputs? Detail any deviations from the starter code. If valuable, you may include visualizations of the data or diagrams/sketches of your approach.
+
+
+% % % === Experiments
+\section{Experiments}
+\label{sec:experiments}
+% 
+In this section, clearly describe your empirical exploration of the problem and associated results. Provide evidence for your claims.
+Analyse and discuss your results.
+Note: Whenever you make claims such as \textit{Approach A performs ``better'' than approach B}, please be very specific in terms of \emph{what} it is better at and by \emph{how much}. Be transparent if it is only better on certain metrics, but not all.
+\subsection{Baselines}
+\label{sec:baselines}
+Describe all the baselines excluding the starter code. You should always start with simple models (such as a multi-layer Perceptron or linear regression) and gradually increase the complexity. You may use the starter code as a baseline, too.
+Use an itemized list to briefly summarize each of the models, their architecture, and parameters, and provide the correct reference if possible.
+
+We compare with the following baselines:
+\begin{itemize}
+    \item \textbf{Baseline A}:
+    \item \textbf{Baseline B}: 
+    % Etc.
+\end{itemize}
+% 
+\subsection{Evaluation}
+\label{sec:evaluation}
+Describe how you evaluate your model and baselines. There is no need to provide long explanations for the Kaggle evaluation, but clearly explain any complementary evaluations you explore in your project (if any).
+% 
+\subsection{Implementation details}
+\label{sec:implementation_details}
+The goal of this section (together with other relevant parts of your paper) is to ensure full reproducibility without having to check your code. \new{Include figures and data to support your explanation.}
+Some relevant points to include:
+\begin{itemize}
+    \item What computational platform/GPU did you use for training and testing? How long does it take to train your model for one epoch (going through the entire training dataset once)?
+    \item Describe hyperparameters/regularization techniques/optimization details: What is your optimizer and learning rate, etc.? How many epochs? What is your batch size? Which HPs were tuned, and what range of values did you try? Was the tuning any different between baselines and your model? What were the final values that you used?
+    \item  How did you choose them? Provide any intuition of these choices: Explain why you made these design choices. Was it motivated by your past experience? Or was it due to the limitations of your computational platform? Be transparent if any hyperparameters are inconsistent between different runs (e.g., baseline A and B were trained with different learning rates). 
+\end{itemize}
+% 
+\subsection{Results}
+\label{sec:results}
+
+\paragraph{Pipeline Evolution and Kaggle Leaderboard Performance}
+Initial experiments with the generic single-pass baseline established a functioning end-to-end evaluation pipeline but highlighted significant formatting and truncation issues. Many free-form responses lacked a clear \texttt{\textbackslash boxed\{\}} answer, and numerical precision mismatches were common.
+
+By implementing the structured prompting format and the adaptive inference pipeline (Phases 1 and 2), we achieved a public leaderboard accuracy of approximately 45\%. The addition of QLoRA fine-tuning and GRPO optimization improved the overall robustness of the generated responses but revealed that token limits remained the primary bottleneck.
+
+Post-inference analysis of the final private set (943 questions) showed that 47.9\% of the responses were truncated due to the generation length limit, resulting in missing final answers. We implemented a heuristic recovery script that extracted clear answer signals from these truncated reasoning traces. This post-processing step increased the valid answer coverage from 52.1\% to 99.8\%, ultimately lifting our private Kaggle leaderboard score from roughly 45\% to \textbf{approximately 52\%}.
+
+Table 3 summarizes the progression of our Kaggle leaderboard scores.
+
+\begin{table}[h]
+    \centering
+    \renewcommand{\arraystretch}{1.4}
+    \begin{tabular}{lc}
+        \hline
+        \textbf{Submission Stage} & \textbf{Approximate Leaderboard Score} \\
+        \hline
+        Initial (Phase 1 + Phase 2 raw) & 45\% \\
+        With Heuristic Recovery v1 & 52\% \\
+        With Heuristic Recovery v2 & 52\%+ (Final) \\
+        \hline
+    \end{tabular}
+    \caption{Progression of private Kaggle leaderboard scores.}
+    \label{tab:leaderboard-progression}
+\end{table}
+
+\paragraph{Truncation Analysis}
+Table 4 breaks down the truncation rates observed during the final private set inference. Notably, Phase 2 inference exhibited a higher truncation rate (73.0\%) compared to Phase 1 (32.5\%). This counter-intuitive result occurred because questions routed to Phase 2 are inherently more difficult, causing the model to generate longer reasoning traces that consistently hit the maximum token limit.
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{lccc}
+        \hline
+        \textbf{Question Type} & \textbf{Total Truncated} & \textbf{Total Questions} & \textbf{Truncation Rate} \\
+        \hline
+        Multiple Choice (MCQ) & 221 & 300 & 73.7\% \\
+        Free-form (FF) & 231 & 643 & 35.9\% \\
+        \hline
+        \textbf{Overall} & \textbf{452} & \textbf{943} & \textbf{47.9\%} \\
+        \hline
+    \end{tabular}
+    \caption{Truncation rates observed on the private set before heuristic recovery.}
+    \label{tab:truncation-rates}
+\end{table}
+
+\subsection{Ablations}
+\label{sec:ablations}
+
+To understand the contribution of individual pipeline components, we analyzed the impact of varying the token budgets and sampling strategies.
+
+\paragraph{Token Budget vs. Sampling Strategy}
+Our primary finding is that allocating a sufficient token budget is more critical than increasing the number of reasoning paths or implementing complex verifiers. When the model was constrained by lower token limits (e.g., 2048 max tokens), responses were frequently truncated before a final answer was formulated, completely nullifying any benefits from self-consistency or reranking. 
+
+Increasing the token budget to 6144 (Phase 1) and 5120 (Phase 2) significantly reduced premature truncation, allowing the model to leverage its reasoning capabilities fully. This suggests that for thinking models like Qwen3-4B, performance is fundamentally bottlenecked by the generation length rather than the complexity of the prompting strategy.
+
+\paragraph{EBM Verifier Reranking}
+The Energy-Based Model (EBM) verifier provided a modest improvement by selecting higher-quality responses during Phase 2. However, its effectiveness was limited by the overall truncation rate. If all generated candidates in a batch are truncated, the verifier cannot recover a correct final answer. Thus, the verifier serves as a useful secondary refinement step but cannot compensate for inadequate token budgets.
+
+% % % === Discussion
+\section{Discussion}
+\label{sec:discussion}
+In this project, we developed an end-to-end mathematical reasoning pipeline for the CSE 151B competition, optimizing the required Qwen3-4B-Thinking model within strict constraints.
+
+\subsection{Achievements}
+We successfully implemented a fully compliant reasoning pipeline that incorporates structured prompting, adaptive multi-phase inference, QLoRA fine-tuning, GRPO reinforcement learning, and an EBM verifier. By deploying a heuristic recovery script to mitigate widespread truncation issues, we improved our valid response coverage from 52.1\% to 99.8\%, achieving a final private Kaggle leaderboard score of approximately 52\%. Our work demonstrates how targeted inference-time optimizations and parameter-efficient training can extract strong mathematical reasoning performance from a relatively small foundation model.
+
+\subsection{Bottlenecks and Mitigation}
+The primary bottleneck encountered was computational efficiency, particularly regarding GPU memory and execution time. The Qwen3-4B-Thinking model generates extensive reasoning traces, which frequently exceeded maximum sequence lengths and led to premature truncation (as detailed in Section 4). We mitigated this by increasing token budgets (up to 6144 for Phase 1 and 5120 for Phase 2) and migrating from sequential to batched Transformers inference on a DSMLP A30 GPU. Additionally, we addressed the truncation issue via a heuristic post-processing script, which successfully recovered answers from incomplete reasoning traces.
+
+\subsection{Lessons Learned}
+A key lesson is that for thinking models, token budget and generation length are the most critical factors governing performance—surpassing the marginal gains from complex reranking or additional sampling. We also found that balancing model constraints against hardware limitations requires careful parameter tuning, such as appropriately reducing the GRPO group size ($G$) on smaller GPUs to avoid Out-Of-Memory (OOM) errors. Finally, utilizing parameter-efficient methods like QLoRA and carefully tuning learning rates (e.g., to $5 \times 10^{-5}$) were essential to preserve the foundational reasoning patterns learned during pretraining.
+
+\subsection{Team Responsibilities}
+% Summarize the background and expertise for each of your team member. Clearly identify each person's role and contribution in this project.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|c|p{4.5cm}|p{3.5cm}|}
+\hline
+\textbf{Member} & \textbf{Background / Expertise} & \textbf{Role \& Contributions} \\
+\hline
+Tia Irani & CS major, experience with computer systems and optimization & Report writing \\
+\hline
+Leonel Alejandro Montoya & Math-CS major, experience with machine learning & Report writing \\
+\hline
+Diego Osborn & DS major, experience with statistical modeling and machine learning & Report writing \\
+\hline
+Sardor Sobirov & DS major, experience with full-stack development and machine learning & Led pipeline development \\
+\hline
+\end{tabular}
+\end{table}
+
+% \paragraph{Timelines. [0.75pt]}
+% Estimate the timeline with the milestones to achieve your expected outcome in this class, considering the discussion provided above.
+% \begin{itemize}
+%     \item Week 2: Fill in your milestones and deliverable
+%     \item Week 3:
+%     \item ...
+%     \item Week 10:
+% \end{itemize}
+
+
+\section*{LLM Usage}
+% The use of LLMs is allowed as a general-purpose assist tool. However,  if LLMs played a significant role in research ideation and/or writing to the extent that they could be regarded as a contributor, then authors should describe the precise role of the LLM in this section on LLM usage. 
+
+% Irrespective of the ways that LLMs were used in a given project, authors should understand that they take full responsibility for the contents written under their name, including content generated by LLMs that could be construed as plagiarism or scientific misconduct (e.g., fabrication of facts).  LLMs are not eligible for authorship.
+LLMs served as general-purpose assistants for research, implementation, and writing throughout this project. The team was responsible for all experimental design decisions, result interpretation, and validation of correctness.
+
+\paragraph{Research and Literature Survey.}
+We used ChatGPT Deep Research to produce a literature survey on single-GPU math reasoning pipelines, covering model selection, prompting strategies, evaluator analysis, and inference-time scaling techniques. This survey informed our adoption of adaptive multi-phase inference, structured prompting, and QLoRA fine-tuning. All strategic decisions---including token budget selection, GRPO hyperparameter choices (e.g., $G=8$, $\beta=0.1$), and the decision to prioritize truncation mitigation over additional sampling---were made by team members based on findings from this survey, published papers, and our own experimentation.
+
+\paragraph{Implementation.}
+LLM-based coding assistants (Cursor/Claude, Gemini) were used extensively for implementing the inference pipeline, including prompt construction, adaptive generation logic, checkpointing, answer extraction, and CSV export. Post-milestone, LLM assistants were also used for implementing QLoRA fine-tuning and GRPO training notebooks, the EBM verifier training and scoring pipeline, the DSMLP migration from vLLM to HuggingFace Transformers (including debugging CUDA compatibility, SDPA attention fallback, and per-chunk checkpointing), and the heuristic truncation recovery scripts. In many cases, we described desired functionality in natural language and iteratively refined the generated code. All code was reviewed, tested, and validated by team members against the competition evaluator before use.
+
+\paragraph{Writing.}
+LLMs assisted with drafting and editing portions of both the milestone and final reports. For the final report, LLM assistants were used for cross-referencing technical claims against project documentation, identifying missing citations, and ensuring proper attribution of referenced methods. All content was reviewed, revised, and verified by team members for accuracy and completeness.
+
+\paragraph{Environment and Debugging.}
+LLMs were consulted for environment setup (WSL2, vLLM, CUDA configuration, DSMLP pod configuration), debugging generation parameters, resolving the vLLM CUDA 12.8/13 ELF symbol incompatibility on DSMLP, and interpreting model card documentation for Qwen3-Thinking.
+
+
+
+% % % === ACKNOWLEDGMENTS AND REFERENCES START
+% \section*{Acknowledgements}
+% This work was supported $\dots$.
+\bibliography{references.bib}
+\bibliographystyle{plainnat}  % Can also use abbrvnat, unsrt, etc.
+% 
+% % % === APPENDIX (optional)
+% \newpage
+% \appendix
+% \section*{Appendix}
+% \section{Appendix topic 1}
+% 
+\end{document}
