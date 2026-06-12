@@ -384,73 +384,86 @@ Describe how you evaluate your model and baselines. There is no need to provide 
 % 
 \subsection{Implementation details}
 \label{sec:implementation_details}
-The goal of this section (together with other relevant parts of your paper) is to ensure full reproducibility without having to check your code. \new{Include figures and data to support your explanation.}
-Some relevant points to include:
-\begin{itemize}
-    \item What computational platform/GPU did you use for training and testing? How long does it take to train your model for one epoch (going through the entire training dataset once)?
-    \item Describe hyperparameters/regularization techniques/optimization details: What is your optimizer and learning rate, etc.? How many epochs? What is your batch size? Which HPs were tuned, and what range of values did you try? Was the tuning any different between baselines and your model? What were the final values that you used?
-    \item  How did you choose them? Provide any intuition of these choices: Explain why you made these design choices. Was it motivated by your past experience? Or was it due to the limitations of your computational platform? Be transparent if any hyperparameters are inconsistent between different runs (e.g., baseline A and B were trained with different learning rates). 
-\end{itemize}
+We implemented our inference pipeline and training procedures using PyTorch and HuggingFace Transformers, migrating from vLLM due to CUDA 12.8/13 compatibility issues on the DSMLP cluster. All experiments and model tuning were conducted on a DSMLP environment using a single NVIDIA A30 GPU (24GB VRAM).
+
+\paragraph{Inference Details}
+The adaptive inference pipeline consisted of two phases. Phase 1 used a maximum generation length of 4096 tokens (1024 reserved for thinking) with greedy decoding. Phase 2 allocated 5120 tokens (4096 thinking) using temperature $T=0.7$, Top-$P=0.9$, and Top-$K=50$ for majority voting. Generating one candidate per question for the 943-question private set took approximately 10 hours on an A30 GPU using batched inference with scaled dot-product attention (SDPA).
+
+\paragraph{Training Details}
+For supervised fine-tuning via QLoRA, we used the AdamW optimizer with a learning rate of $5 \times 10^{-5}$ and a cosine learning rate scheduler. The model was trained for 3 epochs with a batch size of 4, utilizing 4-bit quantization and a sequence length of 8192 to accommodate long reasoning traces. 
+For reinforcement learning via GRPO, we reduced the group size to $G=8$ to fit within the 24GB VRAM constraint, using a KL penalty coefficient of $\beta=0.1$ and a learning rate of $1 \times 10^{-6}$.
 % 
 \subsection{Results}
 \label{sec:results}
-
-\paragraph{Pipeline Evolution and Kaggle Leaderboard Performance}
-Initial experiments with the generic single-pass baseline established a functioning end-to-end evaluation pipeline but highlighted significant formatting and truncation issues. Many free-form responses lacked a clear \texttt{\textbackslash boxed\{\}} answer, and numerical precision mismatches were common.
-
-By implementing the structured prompting format and the adaptive inference pipeline (Phases 1 and 2), we achieved a public leaderboard accuracy of approximately 45\%. The addition of QLoRA fine-tuning and GRPO optimization improved the overall robustness of the generated responses but revealed that token limits remained the primary bottleneck.
-
-Post-inference analysis of the final private set (943 questions) showed that 47.9\% of the responses were truncated due to the generation length limit, resulting in missing final answers. We implemented a heuristic recovery script that extracted clear answer signals from these truncated reasoning traces. This post-processing step increased the valid answer coverage from 52.1\% to 99.8\%, ultimately lifting our private Kaggle leaderboard score from roughly 45\% to \textbf{approximately 52\%}.
-
-Table 3 summarizes the progression of our Kaggle leaderboard scores.
-
-\begin{table}[h]
-    \centering
-    \renewcommand{\arraystretch}{1.4}
-    \begin{tabular}{lc}
-        \hline
-        \textbf{Submission Stage} & \textbf{Approximate Leaderboard Score} \\
-        \hline
-        Initial (Phase 1 + Phase 2 raw) & 45\% \\
-        With Heuristic Recovery v1 & 52\% \\
-        With Heuristic Recovery v2 & 52\%+ (Final) \\
-        \hline
-    \end{tabular}
-    \caption{Progression of private Kaggle leaderboard scores.}
-    \label{tab:leaderboard-progression}
-\end{table}
-
-\paragraph{Truncation Analysis}
-Table 4 breaks down the truncation rates observed during the final private set inference. Notably, Phase 2 inference exhibited a higher truncation rate (73.0\%) compared to Phase 1 (32.5\%). This counter-intuitive result occurred because questions routed to Phase 2 are inherently more difficult, causing the model to generate longer reasoning traces that consistently hit the maximum token limit.
+\textcolor{red}{Present the results from \new{your final solution}. This can be a mix of quantitative results (e.g., validation metrics or leaderboard score) and qualitative results (e.g., example visualizations of predictions, case studies, etc.). Use figures and tables. You are welcome to include any negative findings/results.}
+\paragraph{Result 1}The first completed public-set test evaluated Baseline A on 10 randomly selected public examples. The purpose of this experiment was to verify that the full pipeline could load questions, generate responses, extract answers, score public examples, and save the resulting JSONL artifact.
 
 \begin{table}[h]
     \centering
     \begin{tabular}{lccc}
         \hline
-        \textbf{Question Type} & \textbf{Total Truncated} & \textbf{Total Questions} & \textbf{Truncation Rate} \\
+        \textbf{Question type} & \textbf{Correct} & \textbf{Total} & \textbf{Accuracy} \\
         \hline
-        Multiple Choice (MCQ) & 221 & 300 & 73.7\% \\
-        Free-form (FF) & 231 & 643 & 35.9\% \\
+        Multiple choice & 2 & 4 & 50.00\% \\
+        Free-form       & 2 & 6 & 33.33\% \\
         \hline
-        \textbf{Overall} & \textbf{452} & \textbf{943} & \textbf{47.9\%} \\
+        \textbf{Overall} & \textbf{4} & \textbf{10} & \textbf{40.00\%} \\
         \hline
     \end{tabular}
-    \caption{Truncation rates observed on the private set before heuristic recovery.}
-    \label{tab:truncation-rates}
+    \caption{Accuracy by question type.}
+    \label{tab:question-type-accuracy}
 \end{table}
+
+Because this experiment contains only 10 questions, it should be treated as a pipeline test rather than a reliable estimate of full public-set performance. However, it revealed several useful failure modes.
+
+One MCQ response reached the generation limit before producing a final boxed answer. Several free-form errors involved multi-answer formatting, incomplete responses, or numerical answers that were close to the reference value but were not accepted by the evaluator. For example, one generated value was approximately 85.94366925, while the stored reference was 85.9436692696235°. These observations motivated explicit answer verification, multi-placeholder ordering instructions, and the adaptive retry mechanism.
+\paragraph{Result 2}
+% etc.
+Table 2 compares the generic single-pass baseline, the structured single-pass baseline, and the adaptive pipeline on the same 50-question public validation subset.
+
+\begin{table}[h]
+    \centering
+    \renewcommand{\arraystretch}{1.4}
+    \begin{tabular}{p{3.2cm}ccc}
+        \hline
+        \textbf{Approach} 
+        & \shortstack{\textbf{MCQ} \\ \textbf{accuracy}} 
+        & \shortstack{\textbf{Free-form} \\ \textbf{accuracy}} 
+        & \shortstack{\textbf{Overall} \\ \textbf{accuracy}} \\
+        \hline
+        Generic prompt, single pass 
+        & \text{[INSERT]} 
+        & \text{[INSERT]} 
+        & \text{[INSERT]} \\
+        
+        Structured prompt, single pass 
+        & \text{[INSERT]} 
+        & \text{[INSERT]} 
+        & \text{[INSERT]} \\
+        
+        Adaptive multi-pass pipeline 
+        & \text{[INSERT]} 
+        & \text{[INSERT]} 
+        & \text{[INSERT]} \\
+        \hline
+    \end{tabular}
+    \caption{Accuracy comparison across prompting approaches.}
+    \label{tab:approach-comparison}
+\end{table}
+
+Compared with the generic single-pass baseline, the structured prompt changes only the prompt instructions. Therefore, the difference between the first two rows isolates the effect of the structured reasoning format. The comparison between the structured single-pass baseline and the adaptive pipeline measures the value of selectively retrying uncertain questions.
+
+After running the experiment, report improvements using both absolute counts and percentage points. For example:
+
+The adaptive pipeline improved overall accuracy from [A]\% to [B]\%, an increase of [B − A] percentage points, while increasing the average inference time from [C] to [D] seconds per question. The improvement was [larger/smaller] for free-form questions than for MCQ questions. The number of responses truncated by the length limit decreased from [E] to [F].
+
+To visualize the computational tradeoff, Figure 1 should show the number of examples that terminate after Phase 1, escalate to Phase 2, and escalate to Phase 3.
+
 
 \subsection{Ablations}
 \label{sec:ablations}
-
-To understand the contribution of individual pipeline components, we analyzed the impact of varying the token budgets and sampling strategies.
-
-\paragraph{Token Budget vs. Sampling Strategy}
-Our primary finding is that allocating a sufficient token budget is more critical than increasing the number of reasoning paths or implementing complex verifiers. When the model was constrained by lower token limits (e.g., 2048 max tokens), responses were frequently truncated before a final answer was formulated, completely nullifying any benefits from self-consistency or reranking. 
-
-Increasing the token budget to 6144 (Phase 1) and 5120 (Phase 2) significantly reduced premature truncation, allowing the model to leverage its reasoning capabilities fully. This suggests that for thinking models like Qwen3-4B, performance is fundamentally bottlenecked by the generation length rather than the complexity of the prompting strategy.
-
-\paragraph{EBM Verifier Reranking}
-The Energy-Based Model (EBM) verifier provided a modest improvement by selecting higher-quality responses during Phase 2. However, its effectiveness was limited by the overall truncation rate. If all generated candidates in a batch are truncated, the verifier cannot recover a correct final answer. Thus, the verifier serves as a useful secondary refinement step but cannot compensate for inadequate token budgets.
+{\new{Try to explore which design choices contribute to your final performance by removing/replacing individual components. Note that ablations are most convincing when you isolate the contribution of those individual components. For example, if you are comparing architecture A and architecture B, make sure to use the same hyperparameters as much as possible (or tune them for each architecture separately and compare the best version of each). Be clear but concise.
+}}
 
 % % % === Discussion
 \section{Discussion}
